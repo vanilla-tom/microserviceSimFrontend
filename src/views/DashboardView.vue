@@ -1,0 +1,275 @@
+<template>
+  <div class="dashboard-view">
+    <section class="hero-panel">
+      <div class="hero-copy">
+        <span class="eyebrow">Simulation Control Center</span>
+        <p>
+          首版聚焦 `target-distribution.json`。提交后会直接进入监控页，等待态、实时态和回放态在同一页完成。
+        </p>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-card">
+          <span>总任务数</span>
+          <strong>{{ store.tasks.length }}</strong>
+        </div>
+        <div class="stat-card">
+          <span>运行中</span>
+          <strong>{{ store.runningTasks.length }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <div class="layout">
+      <el-card class="form-card" shadow="never">
+        <TargetDistributionForm
+          v-model="draftConfig"
+          @copy-request="copyLatestTask"
+        />
+
+        <div class="submit-bar">
+          <span class="helper-text">提交后由后端生成任务目录配置文件并启动仿真。</span>
+          <el-button type="primary" size="large" :loading="creating" @click="createTask">
+            启动仿真
+          </el-button>
+        </div>
+      </el-card>
+
+      <el-card class="task-card" shadow="never">
+        <template #header>
+          <div class="task-header">
+            <span>最近任务</span>
+            <el-button text @click="store.fetchTasks()">刷新</el-button>
+          </div>
+        </template>
+
+        <el-table
+          :data="store.sortedTasks"
+          v-loading="store.isLoading"
+          empty-text="暂无任务"
+          height="100%"
+        >
+          <el-table-column prop="task_id" label="任务编号" min-width="180">
+            <template #default="{ row }">
+              <button class="task-link" @click="openTask(row.task_id)">{{ row.task_id }}</button>
+            </template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="110">
+            <template #default="{ row }">
+              <StatusBadge :status="row.status" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="created_at" label="创建时间" min-width="150">
+            <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="250" fixed="right">
+            <template #default="{ row }">
+              <div class="row-actions">
+                <el-button text @click="copyTask(row.task_id)">复制配置</el-button>
+                <el-button text type="primary" @click="openTask(row.task_id)">查看</el-button>
+                <el-button text type="danger" @click="deleteTask(row.task_id)">删除</el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import TargetDistributionForm from '@/components/TargetDistributionForm.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import { useSimulationStore } from '@/stores/simulation'
+import { cloneTargetDistribution, defaultTargetDistribution } from '@/constants/targetDistribution'
+
+const router = useRouter()
+const store = useSimulationStore()
+
+const draftConfig = ref(cloneTargetDistribution(defaultTargetDistribution))
+const creating = ref(false)
+
+onMounted(() => {
+  store.fetchTasks()
+})
+
+function formatDate(dateStr) {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleString('zh-CN')
+}
+
+async function createTask() {
+  creating.value = true
+  try {
+    const result = await store.createSimulation(draftConfig.value)
+    ElMessage.success(`任务已启动：${result.task_id}`)
+    router.push(`/task/${result.task_id}`)
+  } finally {
+    creating.value = false
+  }
+}
+
+function openTask(taskId) {
+  router.push(`/task/${taskId}`)
+}
+
+async function copyTask(taskId) {
+  draftConfig.value = await store.fetchTaskConfig(taskId)
+  ElMessage.success('已加载该任务的配置')
+}
+
+async function copyLatestTask() {
+  const latest = store.sortedTasks[0]
+  if (!latest) {
+    ElMessage.warning('还没有可复制的任务配置')
+    return
+  }
+  await copyTask(latest.task_id)
+}
+
+async function deleteTask(taskId) {
+  try {
+    await ElMessageBox.confirm(
+      `删除后将移除任务记录，并清空 data/${taskId} 下的文件，且不可恢复。`,
+      '确认删除仿真记录',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+    await store.deleteTask(taskId)
+    ElMessage.success('仿真记录已删除')
+  } catch (error) {
+    if (error !== 'cancel') {
+      throw error
+    }
+  }
+}
+</script>
+
+<style scoped>
+.dashboard-view {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1480px;
+  margin: 0 auto;
+}
+
+.hero-panel {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px 30px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(125, 211, 252, 0.28), transparent 35%),
+    linear-gradient(135deg, #082f49 0%, #0f172a 48%, #111827 100%);
+  color: #f8fafc;
+}
+
+.hero-copy {
+  max-width: 760px;
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+}
+
+.hero-copy h2 {
+  margin: 0 0 12px;
+  font-size: 34px;
+  line-height: 1.2;
+  color: #f8fafc;
+}
+
+.hero-copy p {
+  max-width: 620px;
+  color: #cbd5e1;
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 14px;
+  min-width: 280px;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.stat-card span {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.stat-card strong {
+  font-size: 32px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.9fr);
+  gap: 24px;
+}
+
+.form-card,
+.task-card {
+  border-radius: 24px;
+}
+
+.submit-bar,
+.task-header,
+.row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.submit-bar {
+  margin-top: 24px;
+}
+
+.helper-text {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.task-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 1100px) {
+  .hero-panel,
+  .layout {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .hero-stats {
+    min-width: 0;
+  }
+}
+</style>
