@@ -41,7 +41,6 @@
             <el-select v-model="timeWindow" size="small" style="width: 100px">
               <el-option label="30秒" :value="30" />
               <el-option label="1分钟" :value="60" />
-              <el-option label="5分钟" :value="300" />
             </el-select>
           </div>
         </template>
@@ -181,6 +180,13 @@ watch(() => props.currentSimTime, async () => {
   }
 })
 
+watch(timeWindow, async () => {
+  if (props.host && props.visible) {
+    vmHistories.value = {}
+    await fetchHostHistory()
+  }
+})
+
 watch(activeVm, async (vms) => {
   // Fetch history for newly expanded VMs
   for (const vmId of vms) {
@@ -236,46 +242,89 @@ function getProgressColor(value) {
   return '#67c23a'
 }
 
-const cpuChartOption = computed(() => {
-  const data = hostHistory.value?.series?.cpu?.data || []
+function normalizeTimeData(rawData) {
+  if (!rawData || rawData.length === 0) return []
+  if (Array.isArray(rawData[0])) {
+    // [[x, y], ...] format — x is absolute sim-time in seconds; make relative
+    const minX = rawData[0][0]
+    return rawData.map(([x, y]) => [+(x - minX).toFixed(1), y])
+  } else {
+    // [y, y, ...] format — use index as x (sample index)
+    return rawData.map((y, i) => [i, y])
+  }
+}
+
+function buildUsageChartOption(rawData, color) {
+  const data = normalizeTimeData(rawData)
+  const maxX = data.length > 0 ? data[data.length - 1][0] : timeWindow.value
+  const isPairFormat = rawData.length > 0 && Array.isArray(rawData[0])
+
+  // Compute y-axis range from data with padding
+  let yMin = 0
+  let yMax = 1
+  if (data.length > 0) {
+    const yValues = data.map(([, y]) => y)
+    const dataMin = Math.min(...yValues)
+    const dataMax = Math.max(...yValues)
+    const span = dataMax - dataMin || 0.05  // avoid zero span when flat line
+    const pad = span * 0.3
+    yMin = Math.max(0, dataMin - pad)
+    yMax = Math.min(1, dataMax + pad)
+    // Round to 2 decimal places for cleaner tick values
+    yMin = Math.floor(yMin * 100) / 100
+    yMax = Math.ceil(yMax * 100) / 100
+  }
+
   return {
-    tooltip: { trigger: 'axis' },
-    grid: { left: '10%', right: '5%', top: '10%', bottom: '15%' },
-    xAxis: { type: 'value', name: '秒' },
-    yAxis: {
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params) => {
+        const p = params[0]
+        const xLabel = isPairFormat ? `${p.value[0]}s` : `#${p.value[0]}`
+        return `${xLabel}<br/>${(p.value[1] * 100).toFixed(1)}%`
+      },
+    },
+    grid: { left: '20%', right: '8%', top: '12%', bottom: '22%' },
+    xAxis: {
       type: 'value',
       min: 0,
-      max: 1,
-      axisLabel: { formatter: v => `${(v * 100).toFixed(0)}%` },
+      max: maxX || timeWindow.value,
+      name: isPairFormat ? 's' : '',
+      nameLocation: 'end',
+      nameGap: 4,
+      nameTextStyle: { fontSize: 11, color: '#909399' },
+      splitNumber: 4,
+      axisLabel: { fontSize: 11 },
+    },
+    yAxis: {
+      type: 'value',
+      min: yMin,
+      max: yMax,
+      splitNumber: 4,
+      axisLabel: {
+        fontSize: 11,
+        formatter: v => `${(v * 100).toFixed(1)}%`,
+      },
     },
     series: [{
       type: 'line',
       data,
       smooth: true,
-      areaStyle: { opacity: 0.3 },
+      symbol: 'none',
+      lineStyle: { width: 2, color },
+      areaStyle: { opacity: 0.2, color },
     }],
   }
+}
+
+const cpuChartOption = computed(() => {
+  const rawData = hostHistory.value?.series?.cpu?.data || []
+  return buildUsageChartOption(rawData, '#5470c6')
 })
 
 const memoryChartOption = computed(() => {
-  const data = hostHistory.value?.series?.memory?.data || []
-  return {
-    tooltip: { trigger: 'axis' },
-    grid: { left: '10%', right: '5%', top: '10%', bottom: '15%' },
-    xAxis: { type: 'value', name: '秒' },
-    yAxis: {
-      type: 'value',
-      min: 0,
-      max: 1,
-      axisLabel: { formatter: v => `${(v * 100).toFixed(0)}%` },
-    },
-    series: [{
-      type: 'line',
-      data,
-      smooth: true,
-      areaStyle: { opacity: 0.3 },
-    }],
-  }
+  const rawData = hostHistory.value?.series?.memory?.data || []
+  return buildUsageChartOption(rawData, '#91cc75')
 })
 
 function getVmChartOption(vmId, seriesKey) {
@@ -331,7 +380,7 @@ function getVmChartOption(vmId, seriesKey) {
 }
 
 .chart {
-  height: 150px;
+  height: 180px;
 }
 
 .vm-title {
