@@ -120,4 +120,23 @@ export const simulationApi = {
     })
     return response.data
   },
+
+  async getTargetHist(taskId, simTime, targetId) {
+    const { data } = await client.get(`/simulations/${taskId}/target-hist`, {
+      params: {
+        sim_time: simTime,
+        target_id: targetId,
+      },
+    })
+    return data
+  },
+
+  async getTargets(taskId, simTime) {
+    const { data } = await client.get(`/simulations/${taskId}/targets`, {
+      params: {
+        sim_time: simTime,
+      },
+    })
+    return data
+  },
 }
