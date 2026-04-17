@@ -102,8 +102,8 @@
           <el-card class="main-panel" shadow="never">
             <template #header>
               <div class="panel-header">
-                <span>调用链拓扑</span>
-                <span class="panel-hint">按当前时间点推导层级链路</span>
+                <span>目标列表</span>
+                <span class="panel-hint">当前仿真时刻的目标分布</span>
               </div>
             </template>
             <CallChainGraph
