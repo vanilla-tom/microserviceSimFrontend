@@ -1,84 +1,100 @@
 <template>
   <div class="call-chain-graph">
-    <div class="legend">
-      <span class="legend-title">Layer</span>
-      <span
-        v-for="layer in layerOrder"
-        :key="layer"
-        class="legend-item"
-        :style="{ backgroundColor: getLayerColor(layer) }"
-      >
-        {{ layer }}
-      </span>
-      <span class="legend-summary">{{ links.length }} 条链路</span>
-    </div>
-
-    <div v-if="orderedHosts.length === 0" class="empty-state">
-      当前时间点暂无可展示的 VM 调用链。
-    </div>
-
-    <div v-else class="topology-viewport">
-      <div ref="canvasRef" class="topology-canvas">
-        <svg
-          class="topology-links"
-          :viewBox="`0 0 ${canvasSize.width} ${canvasSize.height}`"
-          preserveAspectRatio="none"
+    <section class="topology-section">
+      <div class="legend">
+        <span class="legend-title">Layer</span>
+        <span
+            v-for="layer in layerOrder"
+            :key="layer"
+            class="legend-item"
+            :style="{ backgroundColor: getLayerColor(layer) }"
         >
-          <path
-            v-for="link in renderedLinks"
-            :key="`${link.source}-${link.target}`"
-            class="topology-link"
-            :d="link.path"
-            :stroke="link.color"
-          />
-        </svg>
+          {{ layer }}
+        </span>
+      </div>
 
-        <div class="hosts-grid">
-          <article
-            v-for="host in orderedHosts"
-            :key="host.id"
-            class="host-shell"
-          >
-            <header class="host-shell__header">
-              <span class="host-shell__title">{{ host.name }}</span>
-              <span class="host-shell__count">{{ host.vm_count }} VMs</span>
-            </header>
 
-            <div v-if="host.vms.length" class="vm-cloud">
-              <div
-                v-for="vm in host.vms"
-                :key="vm.id"
-                class="vm-item"
+        <div v-if="orderedHosts.length === 0" class="empty-state">
+          当前时间点暂无可展示的 VM 调用链。
+        </div>
+
+        <div v-else class="topology-viewport">
+          <div class="topology-canvas">
+            <div class="topology-scroll">
+            <div class="hosts-grid">
+              <article
+                  v-for="host in orderedHosts"
+                  :key="host.id"
+                  class="host-shell"
               >
-                <div
-                  :ref="(el) => bindVmElement(vm.id, el)"
-                  class="vm-dot"
-                  :style="getVmNodeStyle(vm.layer)"
-                  :title="getVmTitle(vm, host)"
-                />
-                <span class="vm-label">{{ getVmLabel(vm) }}</span>
-              </div>
-            </div>
+                <header class="host-shell__header">
+                  <span class="host-shell__title">{{ host.name }}</span>
+                  <span class="host-shell__count">{{ host.vm_count }} VMs</span>
+                </header>
 
-            <div v-else class="host-shell__empty">
-              暂无 VM
+                <div v-if="host.vms.length" class="vm-cloud">
+                  <div
+                      v-for="vm in host.vms"
+                      :key="vm.id"
+                      class="vm-item"
+                  >
+                    <div
+                        class="vm-dot"
+                        :style="getVmNodeStyle(vm.layer)"
+                        :title="getVmTitle(vm, host)"
+                    />
+                    <span class="vm-label">{{ getVmLabel(vm) }}</span>
+                  </div>
+                </div>
+
+                <div v-else class="host-shell__empty">
+                  暂无 VM
+                </div>
+              </article>
             </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider" />
+
+    <section class="targets-section">
+      <div class="targets-header">
+        <span class="targets-title">目标</span>
+        <span class="targets-count">{{ normalizedTargets.length }} 个</span>
+      </div>
+
+      <div class="targets-scroll">
+        <div v-if="normalizedTargets.length === 0" class="targets-empty">
+          当前时间点暂无目标。
+        </div>
+
+        <div v-else class="targets-grid">
+          <article
+              v-for="target in normalizedTargets"
+              :key="`target-${target}`"
+              class="target-card"
+              @click="emit('target-click', target)"
+          >
+            <div class="target-label">Target</div>
+            <div class="target-value">{{ target }}</div>
           </article>
         </div>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed } from 'vue'
 
 const props = defineProps({
   hosts: {
     type: Array,
     default: () => [],
   },
-  links: {
+  targets: {
     type: Array,
     default: () => [],
   },
@@ -88,6 +104,8 @@ const props = defineProps({
   },
 })
 
+const emit = defineEmits(['target-click'])
+
 const layerColors = {
   RECEIVER: '#67c23a',
   PREPROCESSOR: '#409eff',
@@ -95,14 +113,6 @@ const layerColors = {
   ANALYZER: '#f56c6c',
   STORAGE: '#909399',
 }
-
-const canvasRef = ref(null)
-const canvasSize = ref({ width: 0, height: 0 })
-const vmPositions = ref({})
-const vmElements = new Map()
-
-let resizeObserver = null
-let measureFrame = null
 
 const layerIndex = computed(() => {
   const map = new Map()
@@ -113,110 +123,44 @@ const layerIndex = computed(() => {
 const orderedHosts = computed(() => {
   const rankMap = layerIndex.value
   return [...props.hosts]
-    .map(host => ({
-      ...host,
-      layers: [...(host.layers || [])].sort((left, right) => {
-        const leftRank = rankMap.get(left) ?? Number.MAX_SAFE_INTEGER
-        const rightRank = rankMap.get(right) ?? Number.MAX_SAFE_INTEGER
+      .map(host => ({
+        ...host,
+        layers: [...(host.layers || [])].sort((left, right) => {
+          const leftRank = rankMap.get(left) ?? Number.MAX_SAFE_INTEGER
+          const rightRank = rankMap.get(right) ?? Number.MAX_SAFE_INTEGER
+          if (leftRank !== rightRank) {
+            return leftRank - rightRank
+          }
+          return left.localeCompare(right)
+        }),
+        vms: [...(host.vms || [])].sort((left, right) => {
+          const leftRank = rankMap.get(left.layer) ?? Number.MAX_SAFE_INTEGER
+          const rightRank = rankMap.get(right.layer) ?? Number.MAX_SAFE_INTEGER
+          if (leftRank !== rightRank) {
+            return leftRank - rightRank
+          }
+          return left.id.localeCompare(right.id)
+        }),
+      }))
+      .sort((left, right) => {
+        const leftRank = left.layers.length ? (rankMap.get(left.layers[0]) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
+        const rightRank = right.layers.length ? (rankMap.get(right.layers[0]) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
         if (leftRank !== rightRank) {
           return leftRank - rightRank
         }
-        return left.localeCompare(right)
-      }),
-      vms: [...(host.vms || [])].sort((left, right) => {
-        const leftRank = rankMap.get(left.layer) ?? Number.MAX_SAFE_INTEGER
-        const rightRank = rankMap.get(right.layer) ?? Number.MAX_SAFE_INTEGER
-        if (leftRank !== rightRank) {
-          return leftRank - rightRank
+
+        const leftId = Number(left.id)
+        const rightId = Number(right.id)
+        if (!Number.isNaN(leftId) && !Number.isNaN(rightId)) {
+          return leftId - rightId
         }
         return left.id.localeCompare(right.id)
-      }),
-    }))
-    .sort((left, right) => {
-      const leftRank = left.layers.length ? (rankMap.get(left.layers[0]) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
-      const rightRank = right.layers.length ? (rankMap.get(right.layers[0]) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
-      if (leftRank !== rightRank) {
-        return leftRank - rightRank
-      }
-
-      const leftId = Number(left.id)
-      const rightId = Number(right.id)
-      if (!Number.isNaN(leftId) && !Number.isNaN(rightId)) {
-        return leftId - rightId
-      }
-      return left.id.localeCompare(right.id)
-    })
+      })
 })
 
-const renderedLinks = computed(() => (
-  props.links
-    .map((link) => {
-      const source = vmPositions.value[link.source]
-      const target = vmPositions.value[link.target]
-      if (!source || !target) {
-        return null
-      }
-
-      const startX = source.x
-      const startY = source.y
-      const endX = target.x
-      const endY = target.y
-      const deltaX = endX - startX
-      const direction = deltaX >= 0 ? 1 : -1
-      const curveOffset = Math.max(42, Math.abs(deltaX) * 0.28)
-
-      return {
-        ...link,
-        color: getLayerColor(link.source_layer),
-        path: `M ${startX} ${startY} C ${startX + curveOffset * direction} ${startY}, ${endX - curveOffset * direction} ${endY}, ${endX} ${endY}`,
-      }
-    })
-    .filter(Boolean)
+const normalizedTargets = computed(() => (
+    [...props.targets].sort((left, right) => Number(left) - Number(right))
 ))
-
-function bindVmElement(vmId, el) {
-  if (el) {
-    vmElements.set(vmId, el)
-  } else {
-    vmElements.delete(vmId)
-  }
-  scheduleMeasure()
-}
-
-function scheduleMeasure() {
-  if (measureFrame !== null) {
-    cancelAnimationFrame(measureFrame)
-  }
-  measureFrame = requestAnimationFrame(() => {
-    measureFrame = null
-    measureLayout()
-  })
-}
-
-function measureLayout() {
-  if (!canvasRef.value) {
-    return
-  }
-
-  const canvasRect = canvasRef.value.getBoundingClientRect()
-  canvasSize.value = {
-    width: Math.max(Math.round(canvasRect.width), canvasRef.value.scrollWidth, 1),
-    height: Math.max(Math.round(canvasRect.height), canvasRef.value.scrollHeight, 1),
-  }
-
-  const nextPositions = {}
-  vmElements.forEach((element, vmId) => {
-    if (!element?.isConnected) {
-      return
-    }
-    const rect = element.getBoundingClientRect()
-    nextPositions[vmId] = {
-      x: rect.left - canvasRect.left + rect.width / 2,
-      y: rect.top - canvasRect.top + rect.height / 2,
-    }
-  })
-  vmPositions.value = nextPositions
-}
 
 function getLayerColor(layer) {
   return layerColors[layer] || '#6b7a90'
@@ -225,8 +169,8 @@ function getLayerColor(layer) {
 function hexToRgba(hex, alpha) {
   const normalized = hex.replace('#', '')
   const value = normalized.length === 3
-    ? normalized.split('').map((part) => part + part).join('')
-    : normalized
+      ? normalized.split('').map((part) => part + part).join('')
+      : normalized
   const intValue = Number.parseInt(value, 16)
   const red = (intValue >> 16) & 255
   const green = (intValue >> 8) & 255
@@ -255,35 +199,6 @@ function getVmTitle(vm, host) {
     vm.vm_type,
   ].join('\n')
 }
-
-watch(
-  () => [props.hosts, props.links, props.layerOrder],
-  async () => {
-    await nextTick()
-    scheduleMeasure()
-  },
-  { deep: true, immediate: true },
-)
-
-onMounted(async () => {
-  await nextTick()
-  if (typeof ResizeObserver !== 'undefined' && canvasRef.value) {
-    resizeObserver = new ResizeObserver(() => scheduleMeasure())
-    resizeObserver.observe(canvasRef.value)
-  }
-  window.addEventListener('resize', scheduleMeasure)
-  scheduleMeasure()
-})
-
-onBeforeUnmount(() => {
-  if (resizeObserver) {
-    resizeObserver.disconnect()
-  }
-  if (measureFrame !== null) {
-    cancelAnimationFrame(measureFrame)
-  }
-  window.removeEventListener('resize', scheduleMeasure)
-})
 </script>
 
 <style scoped>
@@ -292,6 +207,17 @@ onBeforeUnmount(() => {
   border: 1px solid #e6ebf2;
   border-radius: 14px;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.topology-section,
+.targets-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .legend {
@@ -316,14 +242,9 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-.legend-summary {
-  margin-left: auto;
-  color: #7e8aa0;
-  font-size: 12px;
-}
-
-.empty-state {
-  min-height: 240px;
+.empty-state,
+.targets-empty {
+  min-height: 180px;
   display: grid;
   place-items: center;
   color: #7b889f;
@@ -332,37 +253,37 @@ onBeforeUnmount(() => {
   background: #fafcff;
 }
 
+.topology-scroll {
+  max-height: 340px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+}
+
+.targets-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+}
+
 .topology-viewport {
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 6px;
 }
 
 .topology-canvas {
-  position: relative;
   min-width: 960px;
-  min-height: 320px;
-}
-
-.topology-links {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.topology-link {
-  fill: none;
-  stroke-width: 2;
-  opacity: 0.28;
 }
 
 .hosts-grid {
-  position: relative;
-  z-index: 1;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 18px;
+  min-height: 320px;
 }
 
 .host-shell {
@@ -432,13 +353,100 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.72);
 }
 
-@media (max-width: 960px) {
-  .legend-summary {
-    margin-left: 0;
-  }
+.section-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 4px 0;
+}
 
+.targets-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.targets-title {
+  color: #24324a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.targets-count {
+  color: #7c8aa0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.targets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.target-card {
+  padding: 14px 12px;
+  border: 1px solid #dbe5f0;
+  border-radius: 12px;
+  background: #f8fbff;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.target-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  border-color: #b9c9de;
+}
+
+.target-label {
+  color: #7c8aa0;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.target-value {
+  color: #24324a;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.topology-scroll::-webkit-scrollbar,
+.targets-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.topology-viewport::-webkit-scrollbar {
+  height: 8px;
+}
+
+.topology-scroll::-webkit-scrollbar-thumb,
+.targets-scroll::-webkit-scrollbar-thumb,
+.topology-viewport::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.topology-scroll::-webkit-scrollbar-track,
+.targets-scroll::-webkit-scrollbar-track,
+.topology-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (max-width: 960px) {
   .topology-canvas {
     min-width: 720px;
+  }
+
+  .topology-scroll {
+    max-height: 300px;
+  }
+
+  .targets-scroll {
+    max-height: 200px;
   }
 }
 </style>

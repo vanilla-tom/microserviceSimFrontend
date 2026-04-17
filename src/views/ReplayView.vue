@@ -9,10 +9,10 @@
       <div class="header-actions">
         <StatusBadge v-if="task" :status="task.status" size="large" />
         <el-button
-          v-if="task && (task.status === 'running' || task.status === 'pending')"
-          type="danger"
-          plain
-          @click="cancelTask"
+            v-if="task && (task.status === 'running' || task.status === 'pending')"
+            type="danger"
+            plain
+            @click="cancelTask"
         >
           取消任务
         </el-button>
@@ -72,20 +72,20 @@
         </div>
 
         <TimeSlider
-          v-if="metadata"
-          :current-timestamp="timeController.currentTimestamp.value"
-          :data-min-timestamp="timeController.dataMinTimestamp.value"
-          :data-max-timestamp="timeController.dataMaxTimestamp.value"
-          :window-size-ms="timeController.windowSizeMs.value"
-          :visible-range="timeController.visibleRange.value"
-          :is-live-following="timeController.isLiveFollowing.value"
-          :can-step-back="timeController.canStepBack.value"
-          :can-step-forward="timeController.canStepForward.value"
-          @seek="handleSeek"
-          @step-back="handleStepBack"
-          @step-forward="handleStepForward"
-          @reset-latest="handleResetLatest"
-          @update:window-size="handleWindowChange"
+            v-if="metadata"
+            :current-timestamp="timeController.currentTimestamp.value"
+            :data-min-timestamp="timeController.dataMinTimestamp.value"
+            :data-max-timestamp="timeController.dataMaxTimestamp.value"
+            :window-size-ms="timeController.windowSizeMs.value"
+            :visible-range="timeController.visibleRange.value"
+            :is-live-following="timeController.isLiveFollowing.value"
+            :can-step-back="timeController.canStepBack.value"
+            :can-step-forward="timeController.canStepForward.value"
+            @seek="handleSeek"
+            @step-back="handleStepBack"
+            @step-forward="handleStepForward"
+            @reset-latest="handleResetLatest"
+            @update:window-size="handleWindowChange"
         />
 
         <div class="panel-grid">
@@ -107,12 +107,23 @@
               </div>
             </template>
             <CallChainGraph
-              :hosts="callChain.hosts || []"
-              :links="callChain.links || []"
-              :layer-order="callChain.layer_order || metadata?.layer_order || []"
+                :hosts="callChain.hosts || []"
+                :targets="targets"
+                :layer-order="callChain.layer_order || metadata?.layer_order || []"
+                @target-click="handleTargetClick"
             />
           </el-card>
         </div>
+
+        <el-card class="sensor-section" shadow="never">
+          <template #header>
+            <div class="panel-header">
+              <span>传感器数据</span>
+              <span class="panel-hint">探测器实时数据</span>
+            </div>
+          </template>
+          <SensorPanel :sensors="sensorData" />
+        </el-card>
 
         <div class="event-grid">
           <el-card shadow="never">
@@ -151,9 +162,9 @@
             </template>
             <div class="event-list">
               <div
-                v-for="(count, name) in summary.event_counts || {}"
-                :key="name"
-                class="event-item"
+                  v-for="(count, name) in summary.event_counts || {}"
+                  :key="name"
+                  class="event-item"
               >
                 <span>{{ name }}</span>
                 <strong>{{ count }}</strong>
@@ -163,12 +174,46 @@
         </div>
 
         <HostDetailPanel
-          :visible="hostPanelVisible"
-          :host="selectedHost"
-          :current-sim-time="currentSimTime"
-          :task-id="taskId"
-          @close="hostPanelVisible = false"
+            :visible="hostPanelVisible"
+            :host="selectedHost"
+            :current-sim-time="currentSimTime"
+            :task-id="taskId"
+            @close="hostPanelVisible = false"
         />
+
+
+        <el-dialog
+            v-model="targetHistVisible"
+            :title="activeTargetId === null ? '目标历史' : `目标 ${activeTargetId} 历史`"
+            width="980px"
+            destroy-on-close
+        >
+          <div v-loading="targetHistLoading" class="target-history-dialog">
+            <el-table
+                :data="targetHistRows"
+                border
+                stripe
+                empty-text="当前目标暂无历史记录"
+            >
+              <el-table-column prop="time" label="时间" min-width="140">
+                <template #default="scope">
+                  {{ formatDuration(scope.row.time) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="recognition_mods" label="分类识别模块" min-width="260">
+                <template #default="scope">
+                  {{ formatModuleList(scope.row.recognition_mods) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="fusion_mods" label="数据融合模块" min-width="260">
+                <template #default="scope">
+                  {{ formatModuleList(scope.row.fusion_mods) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="event" label="事件" min-width="180" />
+            </el-table>
+          </div>
+        </el-dialog>
       </template>
     </div>
   </div>
@@ -185,6 +230,7 @@ import TimeSlider from '@/components/TimeSlider.vue'
 import HostGrid from '@/components/HostGrid.vue'
 import HostDetailPanel from '@/components/HostDetailPanel.vue'
 import CallChainGraph from '@/components/CallChainGraph.vue'
+import SensorPanel from '@/components/SensorPanel.vue'
 import { useTimeController } from '@/composables/useTimeController'
 
 const props = defineProps({
@@ -210,7 +256,13 @@ const summary = ref({
   snapshot_count: 0,
 })
 const snapshot = ref({ hosts: [] })
-const callChain = ref({ hosts: [], links: [], layer_order: [] })
+const callChain = ref({ hosts: [], layer_order: [] })
+const sensorData = ref([])
+const targets = ref([])
+const targetHistVisible = ref(false)
+const targetHistLoading = ref(false)
+const activeTargetId = ref(null)
+const targetHistRows = ref([])
 const connectionState = ref('disconnected')
 const scheduledRealTime = ref(null)
 const hostPanelVisible = ref(false)
@@ -231,7 +283,7 @@ const connectionLabel = computed(() => {
   return labels[connectionState.value] || connectionState.value
 })
 const scheduledRealTimeText = computed(() => (
-  scheduledRealTime.value ? new Date(scheduledRealTime.value).toLocaleTimeString('zh-CN') : '-'
+    scheduledRealTime.value ? new Date(scheduledRealTime.value).toLocaleTimeString('zh-CN') : '-'
 ))
 
 onMounted(async () => {
@@ -269,8 +321,8 @@ async function loadMetadata() {
       minTimestamp: metadata.value.sim_time_min,
       maxTimestamp: metadata.value.sim_time_max,
       current: task.value && (task.value.status === 'running' || task.value.status === 'pending')
-        ? metadata.value.sim_time_min
-        : metadata.value.sim_time_max,
+          ? metadata.value.sim_time_min
+          : metadata.value.sim_time_max,
     })
   } catch (err) {
     metadata.value = null
@@ -295,14 +347,18 @@ async function loadSummary() {
 }
 
 async function refreshAt(simTime) {
-  const [snapshotData, callChainData, summaryData] = await Promise.all([
+  const [snapshotData, callChainData, summaryData, targetsData, detectorData] = await Promise.all([
     simulationApi.getSnapshot(props.taskId, simTime),
     simulationApi.getCallChain(props.taskId, simTime),
     simulationApi.getSimulationSummary(props.taskId),
+    simulationApi.getTargets(props.taskId, simTime),
+    simulationApi.getDetector(props.taskId, simTime).catch(() => ({ sensor: [] })),
   ])
   snapshot.value = snapshotData
   callChain.value = callChainData
   summary.value = summaryData
+  targets.value = targetsData.targets || []
+  sensorData.value = detectorData.sensor || []
 }
 
 function openSocket() {
@@ -402,6 +458,21 @@ function selectHost(host) {
   hostPanelVisible.value = true
 }
 
+async function handleTargetClick(targetId) {
+  activeTargetId.value = targetId
+  targetHistVisible.value = true
+  targetHistLoading.value = true
+  try {
+    const result = await simulationApi.getTargetHist(props.taskId, currentSimTime.value, targetId)
+    targetHistRows.value = result.records || []
+  } catch (err) {
+    targetHistRows.value = []
+    ElMessage.error(err.response?.data?.error || err.message || '目标历史加载失败')
+  } finally {
+    targetHistLoading.value = false
+  }
+}
+
 async function cancelTask() {
   await simulationApi.cancelTask(props.taskId)
   ElMessage.success('任务已取消')
@@ -428,6 +499,10 @@ function formatDuration(ms) {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes}分 ${seconds}秒`
+}
+
+function formatModuleList(modules) {
+  return Array.isArray(modules) && modules.length ? modules.join(', ') : '-'
 }
 </script>
 
@@ -470,6 +545,10 @@ function formatDuration(ms) {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.target-history-dialog {
+  min-height: 220px;
 }
 
 .top-grid {
@@ -533,6 +612,11 @@ function formatDuration(ms) {
 
 .main-panel {
   border-radius: 22px;
+}
+
+.sensor-section {
+  border-radius: 22px;
+  margin-top: 18px;
 }
 
 .metric-list,

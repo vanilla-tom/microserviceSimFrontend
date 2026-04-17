@@ -11,29 +11,37 @@
         <span class="host-id">Host {{ host.host_id }}</span>
         <el-tag size="small" type="info">{{ host.vm_count }} VMs</el-tag>
       </div>
-      
+
       <div class="host-metrics">
-        <div class="metric">
-          <el-progress
-            type="circle"
-            :width="60"
-            :percentage="host.cpu_usage * 100"
-            :color="getProgressColor(host.cpu_usage)"
-            :stroke-width="6"
-          />
-          <span class="metric-label">CPU</span>
-        </div>
-        
-        <div class="metric">
-          <el-progress
-            type="circle"
-            :width="60"
-            :percentage="host.memory_usage * 100"
-            :color="getProgressColor(host.memory_usage)"
-            :stroke-width="6"
-          />
-          <span class="metric-label">内存</span>
-        </div>
+        <template v-if="isHostOffline(host)">
+          <div class="host-offline">
+            已下机
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="metric">
+            <el-progress
+                type="circle"
+                :width="60"
+                :percentage="host.cpu_usage * 100"
+                :color="getProgressColor(host.cpu_usage)"
+                :stroke-width="6"
+            />
+            <span class="metric-label">CPU</span>
+          </div>
+
+          <div class="metric">
+            <el-progress
+                type="circle"
+                :width="60"
+                :percentage="host.memory_usage * 100"
+                :color="getProgressColor(host.memory_usage)"
+                :stroke-width="6"
+            />
+            <span class="metric-label">内存</span>
+          </div>
+        </template>
       </div>
 
       <div class="vm-indicators">
@@ -61,12 +69,16 @@ defineProps({
 
 defineEmits(['select'])
 
+function isHostOffline(host) {
+  return Number(host.cpu_usage) === 0 && Number(host.memory_usage) === 0
+}
+
 function getHostStatus(host) {
   if (host.cpu_usage > 0.8 || host.memory_usage > 0.8) return 'danger'
   if (host.cpu_usage > 0.6 || host.memory_usage > 0.6) return 'warning'
   return 'normal'
 }
-
+//123
 function getProgressColor(value) {
   if (value > 0.8) return '#f56c6c'
   if (value > 0.6) return '#e6a23c'
@@ -157,5 +169,17 @@ function getProgressColor(value) {
   font-size: 11px;
   color: #909399;
   margin-left: 4px;
+}
+
+.host-offline {
+  width: 100%;
+  text-align: center;
+  padding: 18px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #909399;
+  border: 1px dashed #dcdfe6;
+  border-radius: 8px;
+  background: #f5f7fa;
 }
 </style>
