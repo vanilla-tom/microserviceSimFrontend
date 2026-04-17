@@ -284,7 +284,7 @@ function buildUsageChartOption(rawData, color) {
         return `${xLabel}<br/>${(p.value[1] * 100).toFixed(1)}%`
       },
     },
-    grid: { left: '20%', right: '8%', top: '12%', bottom: '22%' },
+    grid: { left: '8px', right: '8px', top: '12%', bottom: '22%', containLabel: true },
     xAxis: {
       type: 'value',
       min: 0,
@@ -327,21 +327,80 @@ const memoryChartOption = computed(() => {
   return buildUsageChartOption(rawData, '#91cc75')
 })
 
-function getVmChartOption(vmId, seriesKey) {
-  const data = vmHistories.value[vmId]?.series?.[seriesKey]?.data || []
+const VM_CHART_CONFIG = {
+  memory:  { color: '#5470c6', unit: 'MB',  fmt: v => `${v.toFixed(1)} MB`,  integer: false },
+  queue:   { color: '#91cc75', unit: '',    fmt: v => String(Math.round(v)), integer: true  },
+  running: { color: '#fac858', unit: '',    fmt: v => String(Math.round(v)), integer: true  },
+}
+
+function buildVmChartOption(rawData, { color, unit, fmt, integer }) {
+  const data = normalizeTimeData(rawData)
+  const isPairFormat = rawData.length > 0 && Array.isArray(rawData[0])
+  const maxX = data.length > 0 ? data[data.length - 1][0] : timeWindow.value
+
+  let yMin = 0
+  let yMax = integer ? 2 : 1
+  if (data.length > 0) {
+    const yValues = data.map(([, y]) => y)
+    const dataMin = Math.min(...yValues)
+    const dataMax = Math.max(...yValues)
+    const span = dataMax - dataMin || Math.max(dataMax * 0.1, integer ? 1 : 0.05)
+    const pad = span * 0.3
+    yMin = Math.max(0, integer ? Math.floor(dataMin - pad) : dataMin - pad)
+    yMax = integer ? Math.ceil(dataMax + pad) : dataMax + pad
+    if (yMin === yMax) yMax = yMin + (integer ? 1 : 0.1)
+    if (!integer) {
+      yMin = Math.floor(yMin * 100) / 100
+      yMax = Math.ceil(yMax * 100) / 100
+    }
+  }
+
   return {
-    tooltip: { trigger: 'axis' },
-    grid: { left: '15%', right: '5%', top: '10%', bottom: '20%' },
-    xAxis: { type: 'value', axisLabel: { fontSize: 10 } },
-    yAxis: { type: 'value', axisLabel: { fontSize: 10 } },
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params) => {
+        const p = params[0]
+        const xLabel = isPairFormat ? `${p.value[0]}s` : `#${p.value[0]}`
+        return `${xLabel}<br/>${fmt(p.value[1])}`
+      },
+    },
+    grid: { left: '8px', right: '8px', top: '10%', bottom: '26%', containLabel: true },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: maxX || timeWindow.value,
+      name: isPairFormat ? 's' : '',
+      nameLocation: 'end',
+      nameGap: 4,
+      nameTextStyle: { fontSize: 10, color: '#909399' },
+      splitNumber: 3,
+      axisLabel: { fontSize: 10 },
+    },
+    yAxis: {
+      type: 'value',
+      min: yMin,
+      max: yMax,
+      splitNumber: 3,
+      axisLabel: {
+        fontSize: 10,
+        formatter: v => integer ? String(Math.round(v)) : (unit ? `${v}${unit}` : String(v)),
+      },
+    },
     series: [{
       type: 'line',
       data,
       smooth: true,
       symbol: 'none',
-      lineStyle: { width: 1 },
+      lineStyle: { width: 1.5, color },
+      areaStyle: { opacity: 0.15, color },
     }],
   }
+}
+
+function getVmChartOption(vmId, seriesKey) {
+  const rawData = vmHistories.value[vmId]?.series?.[seriesKey]?.data || []
+  const cfg = VM_CHART_CONFIG[seriesKey] || VM_CHART_CONFIG.queue
+  return buildVmChartOption(rawData, cfg)
 }
 </script>
 
@@ -421,6 +480,6 @@ function getVmChartOption(vmId, seriesKey) {
 }
 
 .mini-chart {
-  height: 80px;
+  height: 120px;
 }
 </style>
