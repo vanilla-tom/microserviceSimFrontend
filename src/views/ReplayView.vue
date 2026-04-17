@@ -115,6 +115,16 @@
           </el-card>
         </div>
 
+        <el-card class="sensor-section" shadow="never">
+          <template #header>
+            <div class="panel-header">
+              <span>传感器数据</span>
+              <span class="panel-hint">探测器实时数据</span>
+            </div>
+          </template>
+          <SensorPanel :sensors="sensorData" />
+        </el-card>
+
         <div class="event-grid">
           <el-card shadow="never">
             <template #header>
@@ -220,6 +230,7 @@ import TimeSlider from '@/components/TimeSlider.vue'
 import HostGrid from '@/components/HostGrid.vue'
 import HostDetailPanel from '@/components/HostDetailPanel.vue'
 import CallChainGraph from '@/components/CallChainGraph.vue'
+import SensorPanel from '@/components/SensorPanel.vue'
 import { useTimeController } from '@/composables/useTimeController'
 
 const props = defineProps({
@@ -246,6 +257,7 @@ const summary = ref({
 })
 const snapshot = ref({ hosts: [] })
 const callChain = ref({ hosts: [], layer_order: [] })
+const sensorData = ref([])
 const targets = ref([])
 const targetHistVisible = ref(false)
 const targetHistLoading = ref(false)
@@ -335,16 +347,18 @@ async function loadSummary() {
 }
 
 async function refreshAt(simTime) {
-  const [snapshotData, callChainData, summaryData, targetsData] = await Promise.all([
+  const [snapshotData, callChainData, summaryData, targetsData, detectorData] = await Promise.all([
     simulationApi.getSnapshot(props.taskId, simTime),
     simulationApi.getCallChain(props.taskId, simTime),
     simulationApi.getSimulationSummary(props.taskId),
     simulationApi.getTargets(props.taskId, simTime),
+    simulationApi.getDetector(props.taskId, simTime).catch(() => ({ sensor: [] })),
   ])
   snapshot.value = snapshotData
   callChain.value = callChainData
   summary.value = summaryData
   targets.value = targetsData.targets || []
+  sensorData.value = detectorData.sensor || []
 }
 
 function openSocket() {
@@ -598,6 +612,11 @@ function formatModuleList(modules) {
 
 .main-panel {
   border-radius: 22px;
+}
+
+.sensor-section {
+  border-radius: 22px;
+  margin-top: 18px;
 }
 
 .metric-list,

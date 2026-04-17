@@ -139,4 +139,12 @@ export const simulationApi = {
     })
     return data
   },
+
+  // Get detector/sensor data
+  async getDetector(taskId, simTime) {
+    const response = await client.get(`/detector`, {
+      params: { sim_time: simTime },
+    })
+    return response.data
+  },
 }
