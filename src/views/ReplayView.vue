@@ -30,16 +30,8 @@
               <strong>{{ task.task_id }}</strong>
             </div>
             <div class="info-card">
-              <span>连接状态</span>
-              <strong>{{ connectionLabel }}</strong>
-            </div>
-            <div class="info-card">
-              <span>调度时间</span>
-              <strong>{{ scheduledRealTimeText }}</strong>
-            </div>
-            <div class="info-card">
               <span>数据范围</span>
-              <strong>{{ formatDuration(metadata?.duration_ms || 0) }}</strong>
+              <strong>{{ formatDuration((timeController.dataMaxTimestamp.value || 0) - (timeController.dataMinTimestamp.value || 0)) }}</strong>
             </div>
           </div>
 
@@ -72,7 +64,7 @@
         </div>
 
         <TimeSlider
-            v-if="metadata"
+            v-if="timeController.hasRange.value"
             :current-timestamp="timeController.currentTimestamp.value"
             :data-min-timestamp="timeController.dataMinTimestamp.value"
             :data-max-timestamp="timeController.dataMaxTimestamp.value"
@@ -109,7 +101,7 @@
             <CallChainGraph
                 :hosts="callChain.hosts || []"
                 :targets="targets"
-                :layer-order="callChain.layer_order || metadata?.layer_order || []"
+                :layer-order="callChain.layer_order || []"
                 @target-click="handleTargetClick"
             />
           </el-card>
@@ -220,11 +212,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { simulationApi } from '@/api/simulation'
-import { wsBaseURL } from '@/api/client'
 import StatusBadge from '@/components/StatusBadge.vue'
 import TimeSlider from '@/components/TimeSlider.vue'
 import HostGrid from '@/components/HostGrid.vue'
@@ -244,7 +235,6 @@ const router = useRouter()
 const loading = ref(true)
 const error = ref(null)
 const task = ref(null)
-const metadata = ref(null)
 const summary = ref({
   host_stats: {},
   vm_stats: {},
@@ -263,37 +253,14 @@ const targetHistVisible = ref(false)
 const targetHistLoading = ref(false)
 const activeTargetId = ref(null)
 const targetHistRows = ref([])
-const connectionState = ref('disconnected')
-const scheduledRealTime = ref(null)
 const hostPanelVisible = ref(false)
 const selectedHost = ref(null)
 const timeController = useTimeController()
-const hasReceivedLiveTick = ref(false)
-
-let ws = null
 
 const currentSimTime = computed(() => timeController.currentTimestamp.value)
-const connectionLabel = computed(() => {
-  const labels = {
-    connecting: '连接中',
-    connected: '已连接',
-    waiting: '等待数据',
-    disconnected: '未连接',
-  }
-  return labels[connectionState.value] || connectionState.value
-})
-const scheduledRealTimeText = computed(() => (
-    scheduledRealTime.value ? new Date(scheduledRealTime.value).toLocaleTimeString('zh-CN') : '-'
-))
 
 onMounted(async () => {
   await initialize()
-})
-
-onUnmounted(() => {
-  if (ws) {
-    ws.close()
-  }
 })
 
 async function initialize() {
@@ -301,31 +268,23 @@ async function initialize() {
   try {
     task.value = await simulationApi.getTask(props.taskId)
     await loadSummary()
-    await loadMetadata()
-    if (task.value.status === 'pending' || task.value.status === 'running') {
-      openSocket()
-    } else {
-      await refreshAt(timeController.currentTimestamp.value || metadata.value?.sim_time_max || 0)
+    const initMax = summary.value.sim_time_max ?? 0
+    timeController.initialize({
+      minTimestamp: summary.value.sim_time_min ?? 0,
+      maxTimestamp: initMax,
+      current: initMax,
+    })
+    await refreshAt(initMax || 0)
+    // For running tasks the bounds may have advanced during the fetch; snap to the new latest.
+    timeController.resetToLatest()
+    const latestTime = timeController.currentTimestamp.value
+    if (latestTime !== initMax) {
+      await refreshAt(latestTime)
     }
   } catch (err) {
     error.value = err.response?.data?.error || err.message
   } finally {
     loading.value = false
-  }
-}
-
-async function loadMetadata() {
-  try {
-    metadata.value = await simulationApi.getSimulationMetadata(props.taskId)
-    timeController.initialize({
-      minTimestamp: metadata.value.sim_time_min,
-      maxTimestamp: metadata.value.sim_time_max,
-      current: task.value && (task.value.status === 'running' || task.value.status === 'pending')
-          ? metadata.value.sim_time_min
-          : metadata.value.sim_time_max,
-    })
-  } catch (err) {
-    metadata.value = null
   }
 }
 
@@ -359,74 +318,11 @@ async function refreshAt(simTime) {
   summary.value = summaryData
   targets.value = targetsData.targets || []
   sensorData.value = detectorData.sensor || []
-}
-
-function openSocket() {
-  connectionState.value = 'connecting'
-  ws = new WebSocket(`${wsBaseURL}/simulations/${props.taskId}/stream`)
-  ws.onopen = () => {
-    connectionState.value = 'connected'
-  }
-  ws.onmessage = async (event) => {
-    const message = JSON.parse(event.data)
-    const payload = message.data || {}
-    switch (message.type) {
-      case 'task_state':
-        task.value = { ...task.value, ...payload }
-        break
-      case 'metadata':
-        metadata.value = payload
-        if (task.value && (task.value.status === 'running' || task.value.status === 'pending') && !hasReceivedLiveTick.value) {
-          timeController.updateBounds(payload.sim_time_min, payload.sim_time_max, { snapToLatest: false })
-        } else {
-          timeController.updateBounds(payload.sim_time_min, payload.sim_time_max)
-        }
-        break
-      case 'metrics_tick':
-        hasReceivedLiveTick.value = true
-        scheduledRealTime.value = payload.scheduled_real_time
-        connectionState.value = 'connected'
-        if (payload.snapshot) {
-          snapshot.value = payload.snapshot
-        }
-        if (payload.call_chain) {
-          callChain.value = payload.call_chain
-        }
-        if (metadata.value) {
-          timeController.updateBounds(metadata.value.sim_time_min, payload.sim_time, {
-            snapToLatest: timeController.isLiveFollowing.value,
-          })
-        }
-        if (timeController.isLiveFollowing.value) {
-          timeController.seek(payload.sim_time)
-        }
-        break
-      case 'summary_update':
-        summary.value = payload
-        break
-      case 'stream_status':
-        connectionState.value = payload.status === 'waiting_for_new_data' ? 'waiting' : 'connected'
-        scheduledRealTime.value = payload.scheduled_real_time
-        break
-      case 'complete':
-        connectionState.value = 'disconnected'
-        task.value = { ...task.value, status: 'completed' }
-        await loadMetadata()
-        await loadSummary()
-        break
-      case 'failed':
-        connectionState.value = 'disconnected'
-        if (payload.error_message) {
-          error.value = payload.error_message
-        }
-        break
-      default:
-        break
-    }
-  }
-  ws.onclose = () => {
-    connectionState.value = 'disconnected'
-  }
+  timeController.updateBounds(
+    summaryData.sim_time_min ?? timeController.dataMinTimestamp.value,
+    summaryData.sim_time_max ?? timeController.dataMaxTimestamp.value,
+    { snapToLatest: false },
+  )
 }
 
 async function handleSeek(timestamp) {
@@ -445,6 +341,14 @@ async function handleStepForward() {
 }
 
 async function handleResetLatest() {
+  // Pre-fetch summary to learn the true current max before snapping.
+  const latestSummary = await simulationApi.getSimulationSummary(props.taskId)
+  summary.value = latestSummary
+  timeController.updateBounds(
+    latestSummary.sim_time_min ?? timeController.dataMinTimestamp.value,
+    latestSummary.sim_time_max ?? timeController.dataMaxTimestamp.value,
+    { snapToLatest: false },
+  )
   timeController.resetToLatest()
   await refreshAt(timeController.currentTimestamp.value)
 }
@@ -565,7 +469,7 @@ function formatModuleList(modules) {
 }
 
 .info-strip {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .summary-grid {

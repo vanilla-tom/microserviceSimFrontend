@@ -66,12 +66,6 @@ export const simulationApi = {
 
   // === Replay API ===
 
-  // Get simulation metadata
-  async getSimulationMetadata(taskId) {
-    const response = await client.get(`/simulations/${taskId}/metadata`)
-    return response.data
-  },
-
   async getSimulationSummary(taskId) {
     const response = await client.get(`/simulations/${taskId}/summary`)
     return response.data

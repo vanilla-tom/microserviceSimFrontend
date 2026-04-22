@@ -17,7 +17,7 @@ export function useTimeController(options = {}) {
     end: currentTimestamp.value,
   }))
 
-  const hasRange = computed(() => dataMaxTimestamp.value >= dataMinTimestamp.value)
+  const hasRange = computed(() => dataMaxTimestamp.value > dataMinTimestamp.value)
   const canStepBack = computed(() => currentTimestamp.value > dataMinTimestamp.value)
   const canStepForward = computed(() => currentTimestamp.value < dataMaxTimestamp.value)
 
