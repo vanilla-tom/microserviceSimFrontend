@@ -68,16 +68,12 @@
             :current-timestamp="timeController.currentTimestamp.value"
             :data-min-timestamp="timeController.dataMinTimestamp.value"
             :data-max-timestamp="timeController.dataMaxTimestamp.value"
-            :window-size-ms="timeController.windowSizeMs.value"
-            :visible-range="timeController.visibleRange.value"
-            :is-live-following="timeController.isLiveFollowing.value"
             :can-step-back="timeController.canStepBack.value"
             :can-step-forward="timeController.canStepForward.value"
             @seek="handleSeek"
             @step-back="handleStepBack"
             @step-forward="handleStepForward"
             @reset-latest="handleResetLatest"
-            @update:window-size="handleWindowChange"
         />
 
         <div class="panel-grid">
@@ -99,9 +95,7 @@
               </div>
             </template>
             <CallChainGraph
-                :hosts="callChain.hosts || []"
                 :targets="targets"
-                :layer-order="callChain.layer_order || []"
                 @target-click="handleTargetClick"
             />
           </el-card>
@@ -111,59 +105,23 @@
           <template #header>
             <div class="panel-header">
               <span>传感器数据</span>
-              <span class="panel-hint">探测器实时数据</span>
+              <span class="panel-hint">截至当前仿真时刻的探测器数据</span>
             </div>
           </template>
           <SensorPanel :sensors="sensorData" :task-id="props.taskId" :sim-time="currentSimTime" />
         </el-card>
 
-        <div class="event-grid">
-          <el-card shadow="never">
-            <template #header>
-              <div class="panel-header">
-                <span>当前统计</span>
-                <span class="panel-hint">后端汇总</span>
-              </div>
-            </template>
-            <div class="metric-list">
-              <div class="metric-item">
-                <span>平均主机数</span>
-                <strong>{{ formatNumber(summary.host_stats?.avg) }}</strong>
-              </div>
-              <div class="metric-item">
-                <span>平均微服务数</span>
-                <strong>{{ formatNumber(summary.vm_stats?.avg) }}</strong>
-              </div>
-              <div class="metric-item">
-                <span>队列峰值</span>
-                <strong>{{ formatNumber(summary.queue_stats?.peak) }}</strong>
-              </div>
-              <div class="metric-item">
-                <span>解析异常行</span>
-                <strong>{{ formatNumber(summary.parse_errors) }}</strong>
-              </div>
+        <el-card class="sensor-section" shadow="never">
+          <template #header>
+            <div class="panel-header">
+              <span>资源管理日志</span>
+              <span class="panel-hint">只显示截止到当前仿真时间的最近 100 条信息</span>
             </div>
-          </el-card>
+          </template>
+          <ResourceLog :logs="resourceLog" />
+        </el-card>
 
-          <el-card shadow="never">
-            <template #header>
-              <div class="panel-header">
-                <span>事件计数</span>
-                <span class="panel-hint">按后端已识别 JSONL 类型聚合</span>
-              </div>
-            </template>
-            <div class="event-list">
-              <div
-                  v-for="(count, name) in summary.event_counts || {}"
-                  :key="name"
-                  class="event-item"
-              >
-                <span>{{ name }}</span>
-                <strong>{{ count }}</strong>
-              </div>
-            </div>
-          </el-card>
-        </div>
+        
 
         <HostDetailPanel
             :visible="hostPanelVisible"
@@ -222,6 +180,7 @@ import HostGrid from '@/components/HostGrid.vue'
 import HostDetailPanel from '@/components/HostDetailPanel.vue'
 import CallChainGraph from '@/components/CallChainGraph.vue'
 import SensorPanel from '@/components/SensorPanel.vue'
+import ResourceLog from '@/components/ResourceLog.vue'
 import { useTimeController } from '@/composables/useTimeController'
 
 const props = defineProps({
@@ -246,8 +205,8 @@ const summary = ref({
   snapshot_count: 0,
 })
 const snapshot = ref({ hosts: [] })
-const callChain = ref({ hosts: [], layer_order: [] })
 const sensorData = ref([])
+const resourceLog = ref([])
 const targets = ref([])
 const targetHistVisible = ref(false)
 const targetHistLoading = ref(false)
@@ -305,19 +264,20 @@ async function loadSummary() {
   }
 }
 
-async function refreshAt(simTime) {
-  const [snapshotData, callChainData, summaryData, targetsData, detectorData] = await Promise.all([
+async function refreshAt(simTime, options = {}) {
+  const { summaryData: prefetchedSummary = null } = options
+  const [snapshotData, summaryData, targetsData, detectorData, logData] = await Promise.all([
     simulationApi.getSnapshot(props.taskId, simTime),
-    simulationApi.getCallChain(props.taskId, simTime),
-    simulationApi.getSimulationSummary(props.taskId),
+    prefetchedSummary ? Promise.resolve(prefetchedSummary) : simulationApi.getSimulationSummary(props.taskId),
     simulationApi.getTargets(props.taskId, simTime),
     simulationApi.getDetectorList(props.taskId, simTime).catch(() => ({ sensor: [] })),
+    simulationApi.getResourceLog(props.taskId, simTime).catch(() => []),
   ])
   snapshot.value = snapshotData
-  callChain.value = callChainData
   summary.value = summaryData
   targets.value = targetsData.targets || []
   sensorData.value = detectorData.sensor || []
+  resourceLog.value = Array.isArray(logData) ? logData : (logData.logs ?? logData.records ?? [])
   timeController.updateBounds(
     summaryData.sim_time_min ?? timeController.dataMinTimestamp.value,
     summaryData.sim_time_max ?? timeController.dataMaxTimestamp.value,
@@ -341,20 +301,18 @@ async function handleStepForward() {
 }
 
 async function handleResetLatest() {
-  // Pre-fetch summary to learn the true current max before snapping.
-  const latestSummary = await simulationApi.getSimulationSummary(props.taskId)
+  const [latestTask, latestSummary] = await Promise.all([
+    simulationApi.getTask(props.taskId),
+    simulationApi.getSimulationSummary(props.taskId),
+  ])
+  task.value = latestTask
   summary.value = latestSummary
   timeController.updateBounds(
     latestSummary.sim_time_min ?? timeController.dataMinTimestamp.value,
     latestSummary.sim_time_max ?? timeController.dataMaxTimestamp.value,
-    { snapToLatest: false },
+    { snapToLatest: true },
   )
-  timeController.resetToLatest()
-  await refreshAt(timeController.currentTimestamp.value)
-}
-
-function handleWindowChange(nextWindow) {
-  timeController.setWindowSize(nextWindow)
+  await refreshAt(timeController.currentTimestamp.value, { summaryData: latestSummary })
 }
 
 function selectHost(host) {
@@ -423,7 +381,6 @@ function formatModuleList(modules) {
 .info-strip,
 .summary-grid,
 .panel-grid,
-.event-grid,
 .header-actions,
 .panel-header {
   display: flex;
@@ -509,11 +466,6 @@ function formatModuleList(modules) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.event-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
 .main-panel {
   border-radius: 22px;
 }
@@ -531,8 +483,7 @@ function formatModuleList(modules) {
 @media (max-width: 1200px) {
   .info-strip,
   .summary-grid,
-  .panel-grid,
-  .event-grid {
+  .panel-grid {
     grid-template-columns: 1fr;
   }
 }

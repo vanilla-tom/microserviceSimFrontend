@@ -35,15 +35,6 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
-  // 保留原有 props 以兼容父组件传值，暂不删除
-  hosts: {
-    type: Array,
-    default: () => [],
-  },
-  layerOrder: {
-    type: Array,
-    default: () => [],
-  },
 })
 
 const emit = defineEmits(['target-click'])

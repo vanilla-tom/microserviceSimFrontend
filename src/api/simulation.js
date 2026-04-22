@@ -149,4 +149,12 @@ export const simulationApi = {
     })
     return response.data
   },
+
+  // Get resource management log entries up to sim_time (max 100)
+  async getResourceLog(taskId, simTime) {
+    const response = await client.get(`/resourceLog`, {
+      params: { sim_time: simTime, task_id: taskId },
+    })
+    return response.data
+  },
 }

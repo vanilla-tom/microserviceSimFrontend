@@ -26,7 +26,7 @@
             <el-icon class="is-loading"><Loading /></el-icon>
             <span>加载中…</span>
           </div>
-          <template v-else-if="detailCache[sensor.id]">
+          <template v-else-if="hasDetailRows(sensor.id)">
             <div class="sensor-table-wrapper">
               <table class="sensor-table">
                 <thead>
@@ -37,7 +37,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(data, index) in detailCache[sensor.id].datas" :key="index">
+                  <tr v-for="(data, index) in getDetailRows(sensor.id)" :key="index">
                     <td class="col-id">
                       <span class="id-badge">{{ index + 1 }}</span>
                     </td>
@@ -64,7 +64,7 @@
               </table>
             </div>
           </template>
-          <div v-else class="detail-empty">暂无数据</div>
+          <div v-else class="detail-empty">无数据</div>
         </div>
       </div>
     </div>
@@ -116,6 +116,17 @@ function formatTime(ms) {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes}分${seconds}秒`
+}
+
+function getDetailRows(id) {
+  const detail = detailCache.value[id]
+  if (Array.isArray(detail)) return detail
+  if (Array.isArray(detail?.datas)) return detail.datas
+  return []
+}
+
+function hasDetailRows(id) {
+  return getDetailRows(id).length > 0
 }
 
 function formatSourceData(item) {

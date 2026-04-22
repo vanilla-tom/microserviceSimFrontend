@@ -2,20 +2,13 @@ import { computed, ref } from 'vue'
 
 export function useTimeController(options = {}) {
   const {
-    initialWindowSizeMs = 60_000,
     stepMs = 5_000,
   } = options
 
   const currentTimestamp = ref(0)
   const dataMinTimestamp = ref(0)
   const dataMaxTimestamp = ref(0)
-  const windowSizeMs = ref(initialWindowSizeMs)
   const isLiveFollowing = ref(true)
-
-  const visibleRange = computed(() => ({
-    start: Math.max(dataMinTimestamp.value, currentTimestamp.value - windowSizeMs.value),
-    end: currentTimestamp.value,
-  }))
 
   const hasRange = computed(() => dataMaxTimestamp.value > dataMinTimestamp.value)
   const canStepBack = computed(() => currentTimestamp.value > dataMinTimestamp.value)
@@ -65,17 +58,11 @@ export function useTimeController(options = {}) {
     isLiveFollowing.value = true
   }
 
-  function setWindowSize(nextWindow) {
-    windowSizeMs.value = nextWindow
-  }
-
   return {
     currentTimestamp,
     dataMinTimestamp,
     dataMaxTimestamp,
-    windowSizeMs,
     isLiveFollowing,
-    visibleRange,
     hasRange,
     canStepBack,
     canStepForward,
@@ -86,6 +73,5 @@ export function useTimeController(options = {}) {
     stepBack,
     stepForward,
     resetToLatest,
-    setWindowSize,
   }
 }

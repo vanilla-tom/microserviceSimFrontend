@@ -40,7 +40,7 @@
         <template #header>
           <div class="card-header">
             <span>历史趋势</span>
-            <el-select v-model="timeWindow" size="small" style="width: 100px">
+            <el-select v-model="hostTimeWindow" size="small" style="width: 100px">
               <el-option label="30秒" :value="30" />
               <el-option label="1分钟" :value="60" />
             </el-select>
@@ -61,7 +61,13 @@
       <!-- VM List -->
       <el-card class="vm-card" shadow="never">
         <template #header>
-          <span>虚拟机列表</span>
+          <div class="card-header">
+            <span>虚拟机列表</span>
+            <el-select v-model="vmTimeWindow" size="small" style="width: 100px">
+              <el-option label="30秒" :value="30" />
+              <el-option label="1分钟" :value="60" />
+            </el-select>
+          </div>
         </template>
         <el-collapse v-model="activeVm">
           <el-collapse-item
@@ -83,7 +89,7 @@
             <div class="vm-charts" v-loading="vmHistoryLoading[vm.vm_id]">
               <div class="vm-chart-row">
                 <div class="vm-chart">
-                  <span class="chart-title">内存使用 (MB)</span>
+                  <span class="chart-title">内存使用率</span>
                   <v-chart
                     class="mini-chart"
                     :option="getVmChartOption(vm.vm_id, 'memory')"
@@ -149,7 +155,8 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'fetchHistory'])
 
-const timeWindow = ref(60)
+const hostTimeWindow = ref(60)
+const vmTimeWindow = ref(60)
 const activeVm = ref([])
 const historyLoading = ref(false)
 const vmHistoryLoading = ref({})
@@ -172,6 +179,8 @@ async function fetchHistory({ type, hostId, vmId, startTime, endTime }) {
 // Watch for host changes to fetch history
 watch(() => props.host, async (newHost) => {
   if (newHost && props.visible) {
+    vmHistories.value = {}
+    activeVm.value = []
     await fetchHostHistory()
   }
 })
@@ -179,13 +188,20 @@ watch(() => props.host, async (newHost) => {
 watch(() => props.currentSimTime, async () => {
   if (props.host && props.visible) {
     await fetchHostHistory()
+    await refreshExpandedVmHistories()
   }
 })
 
-watch(timeWindow, async () => {
+watch(hostTimeWindow, async () => {
+  if (props.host && props.visible) {
+    await fetchHostHistory()
+  }
+})
+
+watch(vmTimeWindow, async () => {
   if (props.host && props.visible) {
     vmHistories.value = {}
-    await fetchHostHistory()
+    await refreshExpandedVmHistories()
   }
 })
 
@@ -203,8 +219,7 @@ async function fetchHostHistory() {
   
   historyLoading.value = true
   try {
-    const endTime = props.currentSimTime
-    const startTime = endTime - timeWindow.value * 1000
+    const { startTime, endTime } = getHistoryWindowBounds(hostTimeWindow.value)
     const data = await fetchHistory({
       type: 'host',
       hostId: props.host.host_id,
@@ -222,8 +237,7 @@ async function fetchHostHistory() {
 async function fetchVmHistory(vmId) {
   vmHistoryLoading.value[vmId] = true
   try {
-    const endTime = props.currentSimTime
-    const startTime = endTime - timeWindow.value * 1000
+    const { startTime, endTime } = getHistoryWindowBounds(vmTimeWindow.value)
     const data = await fetchHistory({
       type: 'vm',
       vmId,
@@ -238,18 +252,30 @@ async function fetchVmHistory(vmId) {
   }
 }
 
+async function refreshExpandedVmHistories() {
+  const expandedVmIds = Array.isArray(activeVm.value) ? activeVm.value : [activeVm.value].filter(Boolean)
+  if (expandedVmIds.length === 0) return
+  await Promise.all(expandedVmIds.map(vmId => fetchVmHistory(vmId)))
+}
+
 function getProgressColor(value) {
   if (value > 0.8) return '#f56c6c'
   if (value > 0.6) return '#e6a23c'
   return '#67c23a'
 }
 
-function normalizeTimeData(rawData) {
+function getHistoryWindowBounds(windowSeconds) {
+  const endTime = Math.max(0, props.currentSimTime)
+  const startTime = Math.max(0, endTime - windowSeconds * 1000)
+  return { startTime, endTime }
+}
+
+function normalizeTimeData(rawData, startTimeMs = 0) {
   if (!rawData || rawData.length === 0) return []
   if (Array.isArray(rawData[0])) {
-    // [[x, y], ...] format — x is absolute sim-time in seconds; make relative
-    const minX = rawData[0][0]
-    return rawData.map(([x, y]) => [+(x - minX).toFixed(1), y])
+    // [[x, y], ...] format — x is absolute sim-time in seconds; make it relative to the requested window start
+    const startSeconds = startTimeMs / 1000
+    return rawData.map(([x, y]) => [Math.max(0, +(x - startSeconds).toFixed(1)), y])
   } else {
     // [y, y, ...] format — use index as x (sample index)
     return rawData.map((y, i) => [i, y])
@@ -257,8 +283,9 @@ function normalizeTimeData(rawData) {
 }
 
 function buildUsageChartOption(rawData, color) {
-  const data = normalizeTimeData(rawData)
-  const maxX = data.length > 0 ? data[data.length - 1][0] : timeWindow.value
+  const { startTime, endTime } = getHistoryWindowBounds(hostTimeWindow.value)
+  const data = normalizeTimeData(rawData, startTime)
+  const maxX = Math.max(0, (endTime - startTime) / 1000)
   const isPairFormat = rawData.length > 0 && Array.isArray(rawData[0])
 
   // Compute y-axis range from data with padding
@@ -290,7 +317,7 @@ function buildUsageChartOption(rawData, color) {
     xAxis: {
       type: 'value',
       min: 0,
-      max: maxX || timeWindow.value,
+      max: maxX || hostTimeWindow.value,
       name: isPairFormat ? 's' : '',
       nameLocation: 'end',
       nameGap: 4,
@@ -330,15 +357,35 @@ const memoryChartOption = computed(() => {
 })
 
 const VM_CHART_CONFIG = {
-  memory:  { color: '#5470c6', unit: 'MB',  fmt: v => `${v.toFixed(1)} MB`,  integer: false },
+  memory:  { color: '#5470c6', unit: '%',   fmt: v => `${(v * 100).toFixed(1)}%`, integer: false, percent: true },
   queue:   { color: '#91cc75', unit: '',    fmt: v => String(Math.round(v)), integer: true  },
   running: { color: '#fac858', unit: '',    fmt: v => String(Math.round(v)), integer: true  },
 }
 
-function buildVmChartOption(rawData, { color, unit, fmt, integer }) {
-  const data = normalizeTimeData(rawData)
+function buildIntegerAxisConfig(yMin, yMax) {
+  const span = Math.max(0, yMax - yMin)
+  const smallRange = span <= 2
+
+  return {
+    splitNumber: smallRange ? undefined : 3,
+    minInterval: 1,
+    interval: smallRange ? 1 : undefined,
+    axisLabel: {
+      fontSize: 10,
+      hideOverlap: true,
+      formatter: (value) => {
+        const rounded = Math.round(value)
+        return Math.abs(value - rounded) < 1e-6 ? String(rounded) : ''
+      },
+    },
+  }
+}
+
+function buildVmChartOption(rawData, { color, unit, fmt, integer, percent }) {
+  const { startTime, endTime } = getHistoryWindowBounds(vmTimeWindow.value)
+  const data = normalizeTimeData(rawData, startTime)
   const isPairFormat = rawData.length > 0 && Array.isArray(rawData[0])
-  const maxX = data.length > 0 ? data[data.length - 1][0] : timeWindow.value
+  const maxX = Math.max(0, (endTime - startTime) / 1000)
 
   let yMin = 0
   let yMax = integer ? 2 : 1
@@ -357,6 +404,8 @@ function buildVmChartOption(rawData, { color, unit, fmt, integer }) {
     }
   }
 
+  const integerAxis = integer ? buildIntegerAxisConfig(yMin, yMax) : null
+
   return {
     tooltip: {
       trigger: 'axis',
@@ -370,7 +419,7 @@ function buildVmChartOption(rawData, { color, unit, fmt, integer }) {
     xAxis: {
       type: 'value',
       min: 0,
-      max: maxX || timeWindow.value,
+      max: maxX || vmTimeWindow.value,
       name: isPairFormat ? 's' : '',
       nameLocation: 'end',
       nameGap: 4,
@@ -382,10 +431,16 @@ function buildVmChartOption(rawData, { color, unit, fmt, integer }) {
       type: 'value',
       min: yMin,
       max: yMax,
-      splitNumber: 3,
+      splitNumber: integer ? integerAxis.splitNumber : 3,
+      minInterval: integer ? integerAxis.minInterval : undefined,
+      interval: integer ? integerAxis.interval : undefined,
       axisLabel: {
-        fontSize: 10,
-        formatter: v => integer ? String(Math.round(v)) : (unit ? `${v}${unit}` : String(v)),
+        ...(integer
+          ? integerAxis.axisLabel
+          : {
+            fontSize: 10,
+            formatter: v => (percent ? `${(v * 100).toFixed(1)}%` : (unit ? `${v}${unit}` : String(v))),
+          }),
       },
     },
     series: [{

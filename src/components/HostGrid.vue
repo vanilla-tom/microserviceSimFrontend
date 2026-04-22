@@ -5,7 +5,8 @@
       :key="host.host_id"
       class="host-card"
       :class="getHostStatus(host)"
-      @click="$emit('select', host)"
+      @click="host.status !== false && $emit('select', host)"
+      :style="host.status === false ? { cursor: 'default' } : {}"
     >
       <div class="host-header">
         <span class="host-id">Host {{ host.host_id }}</span>
@@ -46,17 +47,6 @@
         </template>
       </div>
 
-      <div class="vm-indicators">
-        <div
-          v-for="vm in host.vms.slice(0, 6)"
-          :key="vm.vm_id"
-          class="vm-dot"
-          :title="`${vm.vm_type} (队列: ${vm.queue_length})`"
-        />
-        <span v-if="host.vms.length > 6" class="vm-more">
-          +{{ host.vms.length - 6 }}
-        </span>
-      </div>
     </div>
   </div>
 </template>
@@ -72,15 +62,15 @@ defineProps({
 defineEmits(['select'])
 
 function isHostOffline(host) {
-  return Number(host.cpu_usage) === 0 && Number(host.memory_usage) === 0
+  return host.status === false
 }
 
 function getHostStatus(host) {
+  if (host.status === false) return 'normal'
   if (host.cpu_usage > 0.8 || host.memory_usage > 0.8) return 'danger'
   if (host.cpu_usage > 0.6 || host.memory_usage > 0.6) return 'warning'
   return 'normal'
 }
-//123
 function getProgressColor(value) {
   if (value > 0.8) return '#f56c6c'
   if (value > 0.6) return '#e6a23c'
@@ -153,25 +143,6 @@ function getProgressColor(value) {
   color: #909399;
 }
 
-.vm-indicators {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
-
-.vm-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #409eff;
-}
-
-.vm-more {
-  font-size: 11px;
-  color: #909399;
-  margin-left: 4px;
-}
 
 .host-offline {
   width: 100%;
