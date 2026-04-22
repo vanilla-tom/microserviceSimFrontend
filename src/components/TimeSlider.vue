@@ -3,7 +3,7 @@
     <div class="time-top">
       <div class="status-row">
         <el-tag :type="isLiveFollowing ? 'success' : 'info'">
-          {{ isLiveFollowing ? '跟随实时' : '历史查看' }}
+          {{ isLiveFollowing ? '最新状态' : '以往状态' }}
         </el-tag>
         <span class="timestamp">
           当前时间 {{ formatTime(currentTimestamp) }}

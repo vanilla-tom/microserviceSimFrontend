@@ -122,7 +122,7 @@
             <template #header>
               <div class="panel-header">
                 <span>当前统计</span>
-                <span class="panel-hint">后端实时汇总</span>
+                <span class="panel-hint">后端汇总</span>
               </div>
             </template>
             <div class="metric-list">
@@ -131,7 +131,7 @@
                 <strong>{{ formatNumber(summary.host_stats?.avg) }}</strong>
               </div>
               <div class="metric-item">
-                <span>平均 VM 数</span>
+                <span>平均微服务数</span>
                 <strong>{{ formatNumber(summary.vm_stats?.avg) }}</strong>
               </div>
               <div class="metric-item">
