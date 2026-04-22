@@ -9,7 +9,7 @@
           当前时间 {{ formatTime(currentTimestamp) }}
         </span>
         <span class="timestamp muted">
-          数据范围 {{ formatTime(dataMinTimestamp) }} - {{ formatTime(dataMaxTimestamp) }}
+          数据时间范围 {{ formatTime(dataMinTimestamp) }} - {{ formatTime(dataMaxTimestamp) }}
         </span>
       </div>
       <div class="action-row">

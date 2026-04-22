@@ -30,35 +30,35 @@
               <strong>{{ task.task_id }}</strong>
             </div>
             <div class="info-card">
-              <span>数据范围</span>
-              <strong>{{ formatDuration((timeController.dataMaxTimestamp.value || 0) - (timeController.dataMinTimestamp.value || 0)) }}</strong>
+              <span>快照数</span>
+              <strong>{{ summary.snapshot_count || 0 }}</strong>
             </div>
           </div>
 
           <div class="summary-grid">
             <div class="summary-card">
-              <span>快照数</span>
-              <strong>{{ summary.snapshot_count || 0 }}</strong>
+              <span>传感器数</span>
+              <strong>{{ summary.detector_count || 0 }}</strong>
             </div>
             <div class="summary-card">
-              <span>主机峰值</span>
+              <span>目标数峰值</span>
+              <strong>{{ summary.target_count_peak || 0 }}</strong>
+            </div>
+            <div class="summary-card">
+              <span>主机数峰值</span>
               <strong>{{ formatNumber(summary.host_stats?.peak) }}</strong>
             </div>
             <div class="summary-card">
-              <span>VM 峰值</span>
+              <span>微服务数峰值</span>
               <strong>{{ formatNumber(summary.vm_stats?.peak) }}</strong>
             </div>
             <div class="summary-card">
-              <span>CPU 峰值</span>
+              <span>CPU 利用率峰值</span>
               <strong>{{ formatPercent(summary.cpu_stats?.peak) }}</strong>
             </div>
             <div class="summary-card">
-              <span>内存峰值</span>
+              <span>内存利用率峰值</span>
               <strong>{{ formatPercent(summary.memory_stats?.peak) }}</strong>
-            </div>
-            <div class="summary-card">
-              <span>P95 延迟</span>
-              <strong>{{ formatLatency(summary.latency_stats?.p95) }}</strong>
             </div>
           </div>
         </div>
