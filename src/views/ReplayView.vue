@@ -64,7 +64,6 @@
         </div>
 
         <TimeSlider
-            v-if="timeController.hasRange.value"
             :current-timestamp="timeController.currentTimestamp.value"
             :data-min-timestamp="timeController.dataMinTimestamp.value"
             :data-max-timestamp="timeController.dataMaxTimestamp.value"

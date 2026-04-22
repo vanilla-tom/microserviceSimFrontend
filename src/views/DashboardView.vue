@@ -58,12 +58,17 @@
           <el-table-column label="操作" width="160" fixed="right">
             <template #default="{ row }">
               <div class="row-actions">
-                <el-button text type="primary" @click="openTask(row.task_id)">查看</el-button>
+                <el-button
+                  text type="primary"
+                  :disabled="viewCooldown(row) > 0"
+                  @click="openTask(row.task_id)"
+                >{{ viewCooldown(row) > 0 ? `${viewCooldown(row)}s` : '查看' }}</el-button>
                 <el-button
                   v-if="row.status === 'pending' || row.status === 'running'"
                   text type="warning"
+                  :disabled="viewCooldown(row) > 0"
                   @click="stopTask(row.task_id)"
-                >停止</el-button>
+                >{{ viewCooldown(row) > 0 ? `${viewCooldown(row)}s` : '停止' }}</el-button>
                 <el-button
                   v-else
                   text type="danger"
@@ -79,7 +84,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TargetDistributionForm from '@/components/TargetDistributionForm.vue'
@@ -96,10 +101,23 @@ const draftConfig = ref({
   enableSensorFailure: false,
 })
 const creating = ref(false)
+const now = ref(Date.now())
+let ticker = null
 
 onMounted(() => {
   store.fetchTasks()
+  ticker = setInterval(() => { now.value = Date.now() }, 1000)
 })
+
+onUnmounted(() => {
+  clearInterval(ticker)
+})
+
+function viewCooldown(row) {
+  if (row.status !== 'running' && row.status !== 'pending') return 0
+  const ageMs = now.value - new Date(row.created_at).getTime()
+  return Math.max(0, Math.ceil((5000 - ageMs) / 1000))
+}
 
 function formatDate(dateStr) {
   if (!dateStr) return '-'
