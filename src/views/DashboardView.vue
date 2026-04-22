@@ -3,9 +3,6 @@
     <section class="hero-panel">
       <div class="hero-copy">
         <span class="eyebrow">Simulation Control Center</span>
-        <p>
-          首版聚焦 `target-distribution.json`。提交后会直接进入监控页，等待态、实时态和回放态在同一页完成。
-        </p>
       </div>
       <div class="hero-stats">
         <div class="stat-card">
@@ -21,10 +18,7 @@
 
     <div class="layout">
       <el-card class="form-card" shadow="never">
-        <TargetDistributionForm
-          v-model="draftConfig"
-          @copy-request="copyLatestTask"
-        />
+        <TargetDistributionForm v-model="draftConfig" />
 
         <div class="submit-bar">
           <span class="helper-text">提交后由后端生成任务目录配置文件并启动仿真。</span>
@@ -61,12 +55,20 @@
           <el-table-column prop="created_at" label="创建时间" min-width="150">
             <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="250" fixed="right">
+          <el-table-column label="操作" width="160" fixed="right">
             <template #default="{ row }">
               <div class="row-actions">
-                <el-button text @click="copyTask(row.task_id)">复制配置</el-button>
                 <el-button text type="primary" @click="openTask(row.task_id)">查看</el-button>
-                <el-button text type="danger" @click="deleteTask(row.task_id)">删除</el-button>
+                <el-button
+                  v-if="row.status === 'pending' || row.status === 'running'"
+                  text type="warning"
+                  @click="stopTask(row.task_id)"
+                >停止</el-button>
+                <el-button
+                  v-else
+                  text type="danger"
+                  @click="deleteTask(row.task_id)"
+                >删除</el-button>
               </div>
             </template>
           </el-table-column>
@@ -83,12 +85,16 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import TargetDistributionForm from '@/components/TargetDistributionForm.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { useSimulationStore } from '@/stores/simulation'
-import { cloneTargetDistribution, defaultTargetDistribution } from '@/constants/targetDistribution'
 
 const router = useRouter()
 const store = useSimulationStore()
 
-const draftConfig = ref(cloneTargetDistribution(defaultTargetDistribution))
+const draftConfig = ref({
+  scenario: 'single_dir_single_wave',
+  dataSource: 'source1',
+  enableNodeFailure: false,
+  enableSensorFailure: false,
+})
 const creating = ref(false)
 
 onMounted(() => {
@@ -105,7 +111,7 @@ async function createTask() {
   try {
     const result = await store.createSimulation(draftConfig.value)
     ElMessage.success(`任务已启动：${result.task_id}`)
-    router.push(`/task/${result.task_id}`)
+    store.fetchTasks()
   } finally {
     creating.value = false
   }
@@ -115,18 +121,13 @@ function openTask(taskId) {
   router.push(`/task/${taskId}`)
 }
 
-async function copyTask(taskId) {
-  draftConfig.value = await store.fetchTaskConfig(taskId)
-  ElMessage.success('已加载该任务的配置')
-}
-
-async function copyLatestTask() {
-  const latest = store.sortedTasks[0]
-  if (!latest) {
-    ElMessage.warning('还没有可复制的任务配置')
-    return
+async function stopTask(taskId) {
+  try {
+    await store.cancelTask(taskId)
+    ElMessage.success('已发送停止指令')
+  } catch {
+    // error message shown by api client interceptor
   }
-  await copyTask(latest.task_id)
 }
 
 async function deleteTask(taskId) {
