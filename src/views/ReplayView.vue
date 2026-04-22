@@ -122,7 +122,7 @@
               <span class="panel-hint">探测器实时数据</span>
             </div>
           </template>
-          <SensorPanel :sensors="sensorData" />
+          <SensorPanel :sensors="sensorData" :task-id="props.taskId" :sim-time="currentSimTime" />
         </el-card>
 
         <div class="event-grid">
@@ -352,7 +352,7 @@ async function refreshAt(simTime) {
     simulationApi.getCallChain(props.taskId, simTime),
     simulationApi.getSimulationSummary(props.taskId),
     simulationApi.getTargets(props.taskId, simTime),
-    simulationApi.getDetector(props.taskId, simTime).catch(() => ({ sensor: [] })),
+    simulationApi.getDetectorList(props.taskId, simTime).catch(() => ({ sensor: [] })),
   ])
   snapshot.value = snapshotData
   callChain.value = callChainData
@@ -481,7 +481,7 @@ async function cancelTask() {
 
 function formatPercent(value) {
   const safe = Number(value || 0)
-  return `${(safe * 100).toFixed(1)}%`
+  return `${(safe * 100).toFixed(2)}%`
 }
 
 function formatLatency(value) {

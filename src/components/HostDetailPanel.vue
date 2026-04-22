@@ -18,6 +18,7 @@
               :percentage="host.cpu_usage * 100"
               :color="getProgressColor(host.cpu_usage)"
               :stroke-width="10"
+              :format="p => p.toFixed(2) + '%'"
             />
           </el-descriptions-item>
           <el-descriptions-item label="内存利用率">
@@ -25,6 +26,7 @@
               :percentage="host.memory_usage * 100"
               :color="getProgressColor(host.memory_usage)"
               :stroke-width="10"
+              :format="p => p.toFixed(2) + '%'"
             />
           </el-descriptions-item>
           <el-descriptions-item label="VM数量">

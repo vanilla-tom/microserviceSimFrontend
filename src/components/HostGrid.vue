@@ -27,6 +27,7 @@
                 :percentage="host.cpu_usage * 100"
                 :color="getProgressColor(host.cpu_usage)"
                 :stroke-width="6"
+                :format="p => p.toFixed(2) + '%'"
             />
             <span class="metric-label">CPU</span>
           </div>
@@ -38,6 +39,7 @@
                 :percentage="host.memory_usage * 100"
                 :color="getProgressColor(host.memory_usage)"
                 :stroke-width="6"
+                :format="p => p.toFixed(2) + '%'"
             />
             <span class="metric-label">内存</span>
           </div>

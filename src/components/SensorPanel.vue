@@ -4,58 +4,67 @@
       <el-empty description="暂无传感器数据" />
     </div>
     <div v-else class="sensor-list">
-      <div
-          v-for="sensor in sensors"
-          :key="sensor.id"
-          class="sensor-card"
-      >
-        <div class="sensor-header">
-          <div class="sensor-title-wrapper">
-            <span class="sensor-icon">
-              <el-icon><Cpu /></el-icon>
-            </span>
-            <span class="sensor-title">Sensor {{ sensor.id }}</span>
+      <div v-for="sensor in sensors" :key="sensor.id" class="sensor-row-wrapper">
+        <div class="sensor-row" :class="{ disabled: !sensor.status }" @click="sensor.status && toggleSensor(sensor.id)">
+          <div class="sensor-row-left">
+            <el-icon class="expand-icon" :class="{ expanded: expandedId === sensor.id }">
+              <ArrowRight />
+            </el-icon>
+            <span class="sensor-id-label">Sensor {{ sensor.id }}</span>
           </div>
-          <el-tag size="small" type="info" effect="plain">{{ sensor.datas?.length || 0 }} 条记录</el-tag>
+          <el-tag
+            :type="sensor.status ? 'success' : 'danger'"
+            size="small"
+            effect="plain"
+          >
+            {{ sensor.status ? '正常' : '已损毁' }}
+          </el-tag>
         </div>
-        <div class="sensor-table-wrapper">
-          <table class="sensor-table">
-            <thead>
-            <tr>
-              <th class="col-id">ID</th>
-              <th class="col-time">Time</th>
-              <th class="col-source">SourceData</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr
-                v-for="(data, index) in sensor.datas"
-                :key="index"
-            >
-              <td class="col-id">
-                <span class="id-badge">{{ index + 1 }}</span>
-              </td>
-              <td class="col-time">
-                <div class="time-cell">
-                  <el-icon><Timer /></el-icon>
-                  <span>{{ formatTime(data.time) }}</span>
-                </div>
-              </td>
-              <td class="col-source">
-                <div class="source-data">
-                  <div
-                      v-for="(item, idx) in data.source_data"
-                      :key="idx"
-                      class="source-data-item"
-                  >
-                    <span class="data-label">Target {{ item.local_target_id }}</span>
-                    <span class="data-value">{{ formatSourceData(item) }}</span>
-                  </div>
-                </div>
-              </td>
-            </tr>
-            </tbody>
-          </table>
+
+        <div v-if="expandedId === sensor.id" class="sensor-detail">
+          <div v-if="detailLoading" class="detail-loading">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>加载中…</span>
+          </div>
+          <template v-else-if="detailCache[sensor.id]">
+            <div class="sensor-table-wrapper">
+              <table class="sensor-table">
+                <thead>
+                  <tr>
+                    <th class="col-id">ID</th>
+                    <th class="col-time">Time</th>
+                    <th class="col-source">SourceData</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(data, index) in detailCache[sensor.id].datas" :key="index">
+                    <td class="col-id">
+                      <span class="id-badge">{{ index + 1 }}</span>
+                    </td>
+                    <td class="col-time">
+                      <div class="time-cell">
+                        <el-icon><Timer /></el-icon>
+                        <span>{{ formatTime(data.time) }}</span>
+                      </div>
+                    </td>
+                    <td class="col-source">
+                      <div class="source-data">
+                        <div
+                          v-for="(item, idx) in data.source_data"
+                          :key="idx"
+                          class="source-data-item"
+                        >
+                          <span class="data-label">Target {{ item.local_target_id }}</span>
+                          <span class="data-value">{{ formatSourceData(item) }}</span>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+          <div v-else class="detail-empty">暂无数据</div>
         </div>
       </div>
     </div>
@@ -63,14 +72,43 @@
 </template>
 
 <script setup>
-import { Cpu, Timer } from '@element-plus/icons-vue'
+import { ref, watch } from 'vue'
+import { ArrowRight, Loading, Timer } from '@element-plus/icons-vue'
+import { simulationApi } from '@/api/simulation'
 
-defineProps({
-  sensors: {
-    type: Array,
-    default: () => [],
-  },
+const props = defineProps({
+  sensors: { type: Array, default: () => [] },
+  taskId: { type: String, default: '' },
+  simTime: { type: Number, default: 0 },
 })
+
+const expandedId = ref(null)
+const detailCache = ref({})
+const detailLoading = ref(false)
+
+watch(() => props.simTime, () => {
+  detailCache.value = {}
+  expandedId.value = null
+})
+
+async function toggleSensor(id) {
+  if (expandedId.value === id) {
+    expandedId.value = null
+    return
+  }
+  expandedId.value = id
+  if (detailCache.value[id] !== undefined) return
+
+  detailLoading.value = true
+  try {
+    const data = await simulationApi.getDetector(props.taskId, props.simTime, id)
+    detailCache.value[id] = data ?? null
+  } catch {
+    detailCache.value[id] = null
+  } finally {
+    detailLoading.value = false
+  }
+}
 
 function formatTime(ms) {
   if (!ms && ms !== 0) return '-'
@@ -82,15 +120,9 @@ function formatTime(ms) {
 
 function formatSourceData(item) {
   const parts = []
-  if (item.azimuth_deg !== undefined) {
-    parts.push(`azimuth_deg ${item.azimuth_deg.toFixed(2)}°`)
-  }
-  if (item.elevation_deg !== undefined) {
-    parts.push(`elevation_deg ${item.elevation_deg.toFixed(2)}°`)
-  }
-  if (item.slant_range_km !== undefined) {
-    parts.push(`slant_range_km ${item.slant_range_km.toFixed(2)}km`)
-  }
+  if (item.azimuth_deg !== undefined) parts.push(`azimuth_deg ${item.azimuth_deg.toFixed(2)}°`)
+  if (item.elevation_deg !== undefined) parts.push(`elevation_deg ${item.elevation_deg.toFixed(2)}°`)
+  if (item.slant_range_km !== undefined) parts.push(`slant_range_km ${item.slant_range_km.toFixed(2)}km`)
   return parts.join(' · ')
 }
 </script>
@@ -107,64 +139,87 @@ function formatSourceData(item) {
 .sensor-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-height: calc(3 * 200px);
+  max-height: 480px;
   overflow-y: auto;
   padding-right: 4px;
 }
 
-.sensor-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 16px;
-  padding: 20px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
+.sensor-row-wrapper {
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.sensor-card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  transform: translateY(-2px);
-  border-color: #cbd5e1;
+.sensor-row-wrapper:last-child {
+  border-bottom: none;
 }
 
-.sensor-header {
+.sensor-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e2e8f0;
+  justify-content: space-between;
+  padding: 12px 8px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.15s;
+  user-select: none;
 }
 
-.sensor-title-wrapper {
+.sensor-row:hover:not(.disabled) {
+  background: #f8fafc;
+}
+
+.sensor-row.disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.sensor-row-left {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.sensor-icon {
+.expand-icon {
+  font-size: 13px;
+  color: #94a3b8;
+  transition: transform 0.2s;
+}
+
+.expand-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.sensor-id-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* Detail area */
+.sensor-detail {
+  padding: 12px 8px 16px;
+  background: #f8fafc;
+  border-radius: 0 0 8px 8px;
+}
+
+.detail-loading,
+.detail-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  border-radius: 10px;
-  color: white;
+  gap: 8px;
+  padding: 24px 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.detail-loading .el-icon {
   font-size: 18px;
 }
 
-.sensor-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1e293b;
-  letter-spacing: -0.3px;
-}
-
+/* Table */
 .sensor-table-wrapper {
   overflow-x: auto;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid #e2e8f0;
 }
 
@@ -188,18 +243,13 @@ function formatSourceData(item) {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding: 14px 16px;
+  padding: 12px 14px;
   text-align: left;
   border-bottom: 1px solid #e2e8f0;
 }
 
-.sensor-table th:first-child {
-  border-top-left-radius: 12px;
-}
-
-.sensor-table th:last-child {
-  border-top-right-radius: 12px;
-}
+.sensor-table th:first-child { border-top-left-radius: 10px; }
+.sensor-table th:last-child  { border-top-right-radius: 10px; }
 
 .sensor-table tbody {
   display: block;
@@ -215,44 +265,24 @@ function formatSourceData(item) {
 }
 
 .sensor-table tbody tr {
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s;
 }
 
 .sensor-table tbody tr:hover {
-  background-color: #f8fafc;
-}
-
-.sensor-table tbody tr:last-child td:first-child {
-  border-bottom-left-radius: 12px;
-}
-
-.sensor-table tbody tr:last-child td:last-child {
-  border-bottom-right-radius: 12px;
+  background-color: #f1f5f9;
 }
 
 .sensor-table td {
-  padding: 14px 16px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 12px 14px;
+  border-bottom: 1px solid #cbd5e1;
   vertical-align: middle;
 }
 
-.sensor-table tbody tr:last-child td {
-  border-bottom: none;
-}
+.sensor-table tbody tr:last-child td { border-bottom: none; }
 
-/* 列宽定义 */
-.col-id {
-  width: 70px;
-  text-align: center;
-}
-
-.col-time {
-  width: 140px;
-}
-
-.col-source {
-  width: auto;
-}
+.col-id     { width: 70px; text-align: center; }
+.col-time   { width: 140px; }
+.col-source { width: auto; }
 
 .id-badge {
   display: inline-flex;
@@ -281,10 +311,7 @@ function formatSourceData(item) {
   width: fit-content;
 }
 
-.time-cell .el-icon {
-  color: #0284c7;
-  font-size: 14px;
-}
+.time-cell .el-icon { color: #0284c7; font-size: 14px; }
 
 .source-data {
   display: flex;
@@ -297,7 +324,7 @@ function formatSourceData(item) {
   align-items: center;
   gap: 12px;
   padding: 6px 10px;
-  background: #f8fafc;
+  background: #fff;
   border-radius: 6px;
   border-left: 3px solid #3b82f6;
 }
@@ -316,59 +343,24 @@ function formatSourceData(item) {
   font-size: 12px;
 }
 
-/* 自定义滚动条样式 */
+.sensor-list::-webkit-scrollbar,
+.sensor-table tbody::-webkit-scrollbar,
 .sensor-table-wrapper::-webkit-scrollbar {
+  width: 6px;
   height: 6px;
 }
 
+.sensor-list::-webkit-scrollbar-track,
+.sensor-table tbody::-webkit-scrollbar-track,
 .sensor-table-wrapper::-webkit-scrollbar-track {
   background: #f1f5f9;
   border-radius: 3px;
 }
 
+.sensor-list::-webkit-scrollbar-thumb,
+.sensor-table tbody::-webkit-scrollbar-thumb,
 .sensor-table-wrapper::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 3px;
-}
-
-.sensor-table-wrapper::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-.sensor-table tbody::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sensor-table tbody::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 3px;
-}
-
-.sensor-table tbody::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-
-.sensor-table tbody::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* sensor-list 滚动条样式 */
-.sensor-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sensor-list::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 3px;
-}
-
-.sensor-list::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-
-.sensor-list::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
 }
 </style>

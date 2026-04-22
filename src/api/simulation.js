@@ -140,10 +140,18 @@ export const simulationApi = {
     return data
   },
 
-  // Get detector/sensor data
-  async getDetector(taskId, simTime) {
+  // Get detector list (id + status only)
+  async getDetectorList(taskId, simTime) {
+    const response = await client.get(`/detectorList`, {
+      params: { sim_time: simTime, task_id: taskId },
+    })
+    return response.data
+  },
+
+  // Get full detector detail for a single sensor
+  async getDetector(taskId, simTime, sensorId) {
     const response = await client.get(`/detector`, {
-      params: { sim_time: simTime },
+      params: { sim_time: simTime, task_id: taskId, id: sensorId },
     })
     return response.data
   },
