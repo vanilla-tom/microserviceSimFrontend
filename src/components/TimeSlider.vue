@@ -2,12 +2,10 @@
   <div class="time-slider">
     <div class="time-top">
       <div class="status-row">
-        <span class="timestamp">
-          当前时间 {{ formatTime(sliderValue) }}
-        </span>
-        <span class="timestamp muted">
-          仿真时间范围 {{ formatTime(dataMinTimestamp) }} - {{ formatTime(dataMaxTimestamp) }}
-        </span>
+        <div class="timestamp-block">
+          <span class="timestamp-label">当前仿真时刻</span>
+          <span class="timestamp-value">{{ formatTime(sliderValue) }}</span>
+        </div>
       </div>
       <div class="action-row">
         <el-button @click="$emit('step-back')" :disabled="!canStepBack">回退</el-button>
@@ -16,15 +14,21 @@
       </div>
     </div>
 
-    <el-slider
-      :model-value="sliderValue"
-      :min="dataMinTimestamp"
-      :max="dataMaxTimestamp || dataMinTimestamp"
-      :step="1000"
-      :format-tooltip="formatTime"
-      @input="handleSliderInput"
-      @change="handleSliderChange"
-    />
+    <div class="slider-wrap">
+      <el-slider
+        :model-value="sliderValue"
+        :min="dataMinTimestamp"
+        :max="dataMaxTimestamp || dataMinTimestamp"
+        :step="1000"
+        :format-tooltip="formatTime"
+        @input="handleSliderInput"
+        @change="handleSliderChange"
+      />
+      <div class="slider-labels">
+        <span>{{ formatTime(dataMinTimestamp) }}</span>
+        <span>{{ formatTime(dataMaxTimestamp) }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -91,12 +95,41 @@ function formatTime(value) {
   justify-content: space-between;
 }
 
-.timestamp {
-  font-size: 13px;
+.timestamp-block {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.timestamp-label {
+  font-size: 11px;
+  color: #94a3b8;
+  letter-spacing: 0.04em;
+}
+
+.timestamp-value {
+  font-size: 26px;
+  font-weight: 700;
   color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
 
 .timestamp.muted {
   color: #64748b;
+}
+
+.slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #94a3b8;
+  padding: 0 10px;
 }
 </style>

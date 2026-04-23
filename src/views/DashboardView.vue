@@ -2,7 +2,8 @@
   <div class="dashboard-view">
     <section class="hero-panel">
       <div class="hero-copy">
-        <span class="eyebrow">Simulation Control Center</span>
+        <p class="hero-sub">微服务仿真平台</p>
+        <h1 class="hero-title">Simulation Control Center</h1>
       </div>
       <div class="hero-stats">
         <div class="stat-card">
@@ -192,28 +193,34 @@ async function deleteTask(taskId) {
 }
 
 .hero-copy {
-  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
 }
 
-.eyebrow {
-  display: inline-block;
-  margin-bottom: 10px;
+.hero-sub {
+  margin: 0;
   font-size: 12px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #7dd3fc;
 }
 
-.hero-copy h2 {
-  margin: 0 0 12px;
-  font-size: 34px;
-  line-height: 1.2;
+.hero-title {
+  margin: 0;
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1.15;
   color: #f8fafc;
+  letter-spacing: -0.01em;
 }
 
-.hero-copy p {
-  max-width: 620px;
-  color: #cbd5e1;
+.hero-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
 }
 
 .hero-stats {

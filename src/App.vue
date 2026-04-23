@@ -4,13 +4,10 @@
       <div class="brand">
         <div class="brand-mark">MS</div>
         <div>
-          <strong>微服务云仿真平台</strong>
+          <strong>微服务仿真平台</strong>
           <p>Simulation-aligned monitoring dashboard</p>
         </div>
       </div>
-      <nav class="nav-links">
-        <router-link to="/">控制台</router-link>
-      </nav>
     </header>
 
     <main class="shell-main">

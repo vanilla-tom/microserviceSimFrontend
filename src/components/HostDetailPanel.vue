@@ -40,10 +40,13 @@
         <template #header>
           <div class="card-header">
             <span>历史趋势</span>
-            <el-select v-model="hostTimeWindow" size="small" style="width: 100px">
-              <el-option label="30秒" :value="30" />
-              <el-option label="1分钟" :value="60" />
-            </el-select>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;color:#64748b">回放时间窗口</span>
+              <el-select v-model="hostTimeWindow" size="small" style="width: 100px">
+                <el-option label="30秒" :value="30" />
+                <el-option label="1分钟" :value="60" />
+              </el-select>
+            </div>
           </div>
         </template>
         <div class="charts-container">
@@ -63,10 +66,13 @@
         <template #header>
           <div class="card-header">
             <span>虚拟机列表</span>
-            <el-select v-model="vmTimeWindow" size="small" style="width: 100px">
-              <el-option label="30秒" :value="30" />
-              <el-option label="1分钟" :value="60" />
-            </el-select>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;color:#64748b">回放时间窗口</span>
+              <el-select v-model="vmTimeWindow" size="small" style="width: 100px">
+                <el-option label="30秒" :value="30" />
+                <el-option label="1分钟" :value="60" />
+              </el-select>
+            </div>
           </div>
         </template>
         <el-collapse v-model="activeVm">

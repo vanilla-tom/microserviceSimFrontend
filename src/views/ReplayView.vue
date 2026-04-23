@@ -4,7 +4,7 @@
       <div>
         <el-button text @click="router.push('/')">返回首页</el-button>
         <h2>任务监控</h2>
-        <p>等待、实时监控与回放共用同一套时间轴和数据面板。</p>
+        <p>实时监控与状态回放共用同一套时间轴和数据面板。</p>
       </div>
       <div class="header-actions">
         <StatusBadge v-if="task" :status="task.status" size="large" />
@@ -32,6 +32,14 @@
             <div class="info-card">
               <span>快照数</span>
               <strong>{{ summary.snapshot_count || 0 }}</strong>
+            </div>
+            <div class="info-card">
+              <span>系统处理间断数</span>
+              <strong>{{ summary.interruption_count ?? 0 }}</strong>
+            </div>
+            <div class="info-card">
+              <span>仿真时间范围</span>
+              <strong>{{ formatDuration(summary.sim_time_min ?? 0) }} – {{ formatDuration(summary.sim_time_max ?? 0) }}</strong>
             </div>
           </div>
 
@@ -80,7 +88,7 @@
             <template #header>
               <div class="panel-header">
                 <span>集群快照</span>
-                <span class="panel-hint">当前仿真时间 {{ formatDuration(currentSimTime) }}</span>
+                <span class="panel-hint">当前仿真时刻的集群状态</span>
               </div>
             </template>
             <HostGrid :hosts="snapshot.hosts || []" @select="selectHost" />
@@ -114,7 +122,7 @@
           <template #header>
             <div class="panel-header">
               <span>资源管理日志</span>
-              <span class="panel-hint">只显示截止到当前仿真时间的最近 100 条信息</span>
+              <span class="panel-hint">只显示截止到当前仿真时刻的最近 100 条信息</span>
             </div>
           </template>
           <ResourceLog :logs="resourceLog" />
