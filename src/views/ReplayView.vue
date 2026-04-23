@@ -61,12 +61,12 @@
               <strong>{{ formatNumber(summary.vm_stats?.peak) }}</strong>
             </div>
             <div class="summary-card">
-              <span>CPU 利用率峰值</span>
-              <strong>{{ formatPercent(summary.cpu_stats?.peak) }}</strong>
+              <span>计算资源利用率峰值</span>
+              <strong>{{ formatPercent(summary.resource_stats?.peak) }}</strong>
             </div>
             <div class="summary-card">
-              <span>内存利用率峰值</span>
-              <strong>{{ formatPercent(summary.memory_stats?.peak) }}</strong>
+              <span>计算资源利用率谷值</span>
+              <strong>{{ formatPercent(summary.resource_stats?.valley) }}</strong>
             </div>
           </div>
         </div>
@@ -205,8 +205,7 @@ const task = ref(null)
 const summary = ref({
   host_stats: {},
   vm_stats: {},
-  cpu_stats: {},
-  memory_stats: {},
+  resource_stats: {},
   queue_stats: {},
   latency_stats: {},
   event_counts: {},
@@ -262,8 +261,7 @@ async function loadSummary() {
     summary.value = {
       host_stats: {},
       vm_stats: {},
-      cpu_stats: {},
-      memory_stats: {},
+      resource_stats: {},
       queue_stats: {},
       latency_stats: {},
       event_counts: {},
