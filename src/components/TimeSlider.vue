@@ -103,7 +103,7 @@ function formatTime(value) {
 
 .timestamp-label {
   font-size: 11px;
-  color: #94a3b8;
+  color: #64748b;
   letter-spacing: 0.04em;
 }
 

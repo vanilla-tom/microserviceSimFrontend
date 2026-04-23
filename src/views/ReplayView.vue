@@ -2,7 +2,7 @@
   <div class="monitor-view">
     <div class="monitor-header">
       <div>
-        <el-button text @click="router.push('/')">返回首页</el-button>
+        <el-button plain @click="router.push('/')">← 返回首页</el-button>
         <h2>任务监控</h2>
         <p>实时监控与状态回放共用同一套时间轴和数据面板。</p>
       </div>
@@ -49,7 +49,7 @@
               <strong>{{ summary.detector_count || 0 }}</strong>
             </div>
             <div class="summary-card">
-              <span>目标数峰值</span>
+              <span>处理目标数峰值</span>
               <strong>{{ summary.target_count_peak || 0 }}</strong>
             </div>
             <div class="summary-card">
@@ -98,11 +98,12 @@
             <template #header>
               <div class="panel-header">
                 <span>目标列表</span>
-                <span class="panel-hint">当前仿真时刻的目标分布</span>
+                <span class="panel-hint">截至当前仿真时刻的目标统计</span>
               </div>
             </template>
             <CallChainGraph
                 :targets="targets"
+                :sensor-count="summary.detector_count || 0"
                 @target-click="handleTargetClick"
             />
           </el-card>
@@ -122,7 +123,7 @@
           <template #header>
             <div class="panel-header">
               <span>资源管理日志</span>
-              <span class="panel-hint">只显示截止到当前仿真时刻的最近 100 条信息</span>
+              <span class="panel-hint">截至当前仿真时刻的最近 100 条信息</span>
             </div>
           </template>
           <ResourceLog :logs="resourceLog" />
@@ -345,7 +346,7 @@ async function handleTargetClick(targetId) {
 async function cancelTask() {
   await simulationApi.cancelTask(props.taskId)
   ElMessage.success('任务已取消')
-  router.push('/')
+  task.value = await simulationApi.getTask(props.taskId)
 }
 
 function formatPercent(value) {

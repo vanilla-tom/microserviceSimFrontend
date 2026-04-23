@@ -14,6 +14,14 @@
           <span>运行中</span>
           <strong>{{ store.runningTasks.length }}</strong>
         </div>
+        <div class="stat-card">
+          <span>已完成</span>
+          <strong>{{ store.completedTasks.length }}</strong>
+        </div>
+        <div class="stat-card">
+          <span>失败</span>
+          <strong>{{ store.failedTasks.length }}</strong>
+        </div>
       </div>
     </section>
 
@@ -225,7 +233,7 @@ async function deleteTask(taskId) {
 
 .hero-stats {
   display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
   gap: 14px;
   min-width: 280px;
 }

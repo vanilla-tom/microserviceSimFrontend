@@ -22,6 +22,14 @@ export const useSimulationStore = defineStore('simulation', () => {
     )
   })
 
+  const completedTasks = computed(() =>
+    tasks.value.filter((t) => t.status === 'completed')
+  )
+
+  const failedTasks = computed(() =>
+    tasks.value.filter((t) => t.status === 'failed' || t.status === 'cancelled')
+  )
+
   // Actions
   function upsertTask(task) {
     const index = tasks.value.findIndex((t) => t.task_id === task.task_id)
@@ -166,6 +174,8 @@ export const useSimulationStore = defineStore('simulation', () => {
     // Getters
     sortedTasks,
     runningTasks,
+    completedTasks,
+    failedTasks,
     // Actions
     fetchTasks,
     fetchTask,

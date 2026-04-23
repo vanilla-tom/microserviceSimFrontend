@@ -2,8 +2,7 @@
   <div class="targets-container">
     <section class="targets-section">
       <div class="targets-header">
-        <span class="targets-title">目标</span>
-        <span class="targets-count">{{ normalizedTargets.length }} 个</span>
+        <span class="targets-title">实际目标数：{{ normalizedTargets.length }}</span>
       </div>
 
       <div class="targets-scroll">
@@ -35,6 +34,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  sensorCount: {
+    type: Number,
+    default: 0,
+  },
 })
 
 const emit = defineEmits(['target-click'])
@@ -46,10 +49,6 @@ const normalizedTargets = computed(() => (
 
 <style scoped>
 .targets-container {
-  background: #fff;
-  border: 1px solid #e6ebf2;
-  border-radius: 14px;
-  padding: 16px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -84,7 +83,8 @@ const normalizedTargets = computed(() => (
 .targets-scroll {
   max-height: 600px;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: visible;
+  padding-top: 4px;
   padding-right: 6px;
   scrollbar-gutter: stable;
 }
