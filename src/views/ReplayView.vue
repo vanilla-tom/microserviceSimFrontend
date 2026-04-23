@@ -34,7 +34,7 @@
               <strong>{{ summary.snapshot_count || 0 }}</strong>
             </div>
             <div class="info-card">
-              <span>系统处理间断数</span>
+              <span>系统处理间断次数</span>
               <strong>{{ summary.interruption_count ?? 0 }}</strong>
             </div>
             <div class="info-card">
