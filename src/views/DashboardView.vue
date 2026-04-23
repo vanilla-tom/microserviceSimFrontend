@@ -259,7 +259,7 @@ async function deleteTask(taskId) {
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
   gap: 24px;
 }
 
