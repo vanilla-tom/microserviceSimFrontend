@@ -104,7 +104,7 @@ const router = useRouter()
 const store = useSimulationStore()
 
 const draftConfig = ref({
-  scenario: 'single_dir_single_wave',
+  scenario: 'free_combination',
   dataSource: 'source1',
   enableNodeFailure: false,
   enableSensorFailure: false,
