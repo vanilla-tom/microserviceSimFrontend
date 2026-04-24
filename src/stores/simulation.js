@@ -16,11 +16,13 @@ export const useSimulationStore = defineStore('simulation', () => {
     })
   })
 
-  const runningTasks = computed(() => {
-    return tasks.value.filter(
-      (t) => t.status === 'pending' || t.status === 'running'
-    )
-  })
+  const pendingTasks = computed(() =>
+    tasks.value.filter((t) => t.status === 'pending')
+  )
+
+  const runningTasks = computed(() =>
+    tasks.value.filter((t) => t.status === 'running')
+  )
 
   const completedTasks = computed(() =>
     tasks.value.filter((t) => t.status === 'completed')
@@ -173,6 +175,7 @@ export const useSimulationStore = defineStore('simulation', () => {
     isLoading,
     // Getters
     sortedTasks,
+    pendingTasks,
     runningTasks,
     completedTasks,
     failedTasks,
