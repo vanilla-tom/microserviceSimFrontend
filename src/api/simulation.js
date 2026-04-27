@@ -157,4 +157,12 @@ export const simulationApi = {
     })
     return response.data
   },
+
+  // Get tag log entries up to sim_time (max 100)
+  async getTagLog(taskId, simTime) {
+    const response = await client.get(`/tagLog`, {
+      params: { sim_time: simTime, task_id: taskId },
+    })
+    return response.data
+  },
 }

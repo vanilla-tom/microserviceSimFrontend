@@ -129,7 +129,17 @@
           <ResourceLog :logs="resourceLog" />
         </el-card>
 
-        
+        <el-card class="sensor-section" shadow="never">
+          <template #header>
+            <div class="panel-header">
+              <span>流数据标识日志</span>
+              <span class="panel-hint">截至当前仿真时刻的最近 100 条信息</span>
+            </div>
+          </template>
+          <TagLog :logs="tagLog" />
+        </el-card>
+
+
 
         <HostDetailPanel
             :visible="hostPanelVisible"
@@ -189,6 +199,7 @@ import HostDetailPanel from '@/components/HostDetailPanel.vue'
 import CallChainGraph from '@/components/CallChainGraph.vue'
 import SensorPanel from '@/components/SensorPanel.vue'
 import ResourceLog from '@/components/ResourceLog.vue'
+import TagLog from '@/components/TagLog.vue'
 import { useTimeController } from '@/composables/useTimeController'
 
 const props = defineProps({
@@ -214,6 +225,7 @@ const summary = ref({
 const snapshot = ref({ hosts: [] })
 const sensorData = ref([])
 const resourceLog = ref([])
+const tagLog = ref([])
 const targets = ref([])
 const targetHistVisible = ref(false)
 const targetHistLoading = ref(false)
@@ -272,18 +284,20 @@ async function loadSummary() {
 
 async function refreshAt(simTime, options = {}) {
   const { summaryData: prefetchedSummary = null } = options
-  const [snapshotData, summaryData, targetsData, detectorData, logData] = await Promise.all([
+  const [snapshotData, summaryData, targetsData, detectorData, logData, tagLogData] = await Promise.all([
     simulationApi.getSnapshot(props.taskId, simTime),
     prefetchedSummary ? Promise.resolve(prefetchedSummary) : simulationApi.getSimulationSummary(props.taskId),
     simulationApi.getTargets(props.taskId, simTime),
     simulationApi.getDetectorList(props.taskId, simTime).catch(() => ({ sensor: [] })),
     simulationApi.getResourceLog(props.taskId, simTime).catch(() => []),
+    simulationApi.getTagLog(props.taskId, simTime).catch(() => []),
   ])
   snapshot.value = snapshotData
   summary.value = summaryData
   targets.value = targetsData.targets || []
   sensorData.value = detectorData.sensor || []
   resourceLog.value = Array.isArray(logData) ? logData : (logData.logs ?? logData.records ?? [])
+  tagLog.value = Array.isArray(tagLogData) ? tagLogData : (tagLogData.logs ?? tagLogData.records ?? [])
   timeController.updateBounds(
     summaryData.sim_time_min ?? timeController.dataMinTimestamp.value,
     summaryData.sim_time_max ?? timeController.dataMaxTimestamp.value,
